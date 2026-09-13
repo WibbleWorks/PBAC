@@ -1,0 +1,246 @@
+{
+  "id": "capstone_api",
+  "title": "Capstone: Secure an API Estate",
+  "subtitle": "OPA + Cedar + OpenFGA, tested and measured",
+  "level": "research",
+  "number": 23,
+  "estimatedTime": 480,
+  "difficulty": 5,
+  "prerequisites": [
+    "testing_verification",
+    "openfga_production",
+    "cedar_production"
+  ],
+  "content": "\n            <div class=\"lesson-section\">\n                <h3>🎯 Mission</h3>\n                <p>Secure a three-service payments API (public health, tenant-scoped reads, admin writes, per-document sharing) using <strong>at least two engines</strong> from this course: OPA/Rego for the API layer, Cedar for app rules, OpenFGA for document sharing. Ship policy + tests + measurements.</p>\n                <p><strong>Time model (honest):</strong> 480 min across sessions — <strong>M1 policy (120)</strong> → <strong>M2 tests (120)</strong> → <strong>M3 enforcement + evidence (240)</strong>. Do not attempt in one sitting.</p>\n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>📦 Definition of Done</h3>\n                <ul>\n                    <li>Rego bundle: default-deny, team/tenant rules, public carve-out; <code>opa test</code> green incl. cross-tenant deny + stranger deny + property tests.</li>\n                    <li>Cedar: schema + permit/forbid set validating clean; owner/MFA/private semantics demonstrated.</li>\n                    <li>OpenFGA: model with concentric viewer←editor + team indirection; tuple lifecycle (share/revoke) scripted; list-objects powering one listing endpoint.</li>\n                    <li>Enforcement: one pattern from Lesson 19 running (sidecar/gateway/middleware) with fail-closed timeout config shown.</li>\n                    <li>Evidence: decision-diff of one intentional rule change + p50/p99 PDP latency numbers + rollback + comms runbook.</li>\n                    <li>Inference-risk note: one paragraph on what your controls do NOT stop (e.g. authorized-but-sensitive aggregation, allowed-tool composition) and what compensates.</li>\n                </ul>\n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>📊 Rubric (14/20 to pass) — one artifact per row</h3>\n                <p><strong>Submit:</strong> repo layout (<code>policies/</code>, <code>tests/</code>, <code>evidence/</code>), <code>opa test -v</code> log, p50/p99 table, decision-diff file, rollback log. Score each row 0 (absent), partial (present but unchecked), or full (present and evidenced per the check).</p>\n                <table>\n                    <thead><tr><th>#</th><th>Artifact (pts)</th><th>Partial</th><th>Full (3, or 2 for row 7)</th></tr></thead>\n                    <tbody>\n                        <tr><td>1</td><td>Default-deny + fail-closed config (3)</td><td>Default set, timeout unconfigured</td><td>Config shows default-deny + timeout=Xms AND a PDP-down → DENY test log line</td></tr>\n                        <tr><td>2</td><td>Deny/regression/property suite log (3)</td><td>Allow-tests only</td><td><code>opa test -v</code> green with named cross-tenant, stranger, and garbage-input denies</td></tr>\n                        <tr><td>3</td><td>Two-engine seam tests (3)</td><td>Two engines present, seams untested</td><td>Rego tenant test AND FGA sharing test both green</td></tr>\n                        <tr><td>4</td><td>Share/revoke lifecycle transcript (3)</td><td>Scripted but revoke untested</td><td>Share + revoke transcript AND cache-invalidation measurement shown</td></tr>\n                        <tr><td>5</td><td>p50/p99 latency table (3)</td><td>Numbers without method</td><td>Table states n, method, and setup for both percentiles</td></tr>\n                        <tr><td>6</td><td>Rollback log (3)</td><td>Steps listed, never run</td><td>Log with staging timestamps from a rehearsed rollback</td></tr>\n                        <tr><td>7</td><td>Decision-diff file (2)</td><td>Diff shown, flips unjustified</td><td>Diff file with every flipped verdict justified in one line each</td></tr>\n                    </tbody>\n                </table>\n            </div>\n            \n            <div class=\"lesson-section\" style=\"background: rgba(139, 92, 246, 0.08); border-left: 4px solid var(--ai-purple); padding: 0.75rem 1rem; border-radius: 4px;\">\n                <strong>🎮 Try it in the Policy Lab →</strong> Use the simulators to pre-validate each verdict before you build. Use the controls under the canvas to switch scenarios and watch the verdict change.\n            </div>\n        \n        ",
+  "concepts": [
+    "Capstone Integration",
+    "Multi-Engine Design",
+    "Latency Measurement",
+    "Decision Diffs"
+  ],
+  "quiz": {
+    "id": "capstone_api_quiz",
+    "title": "Capstone API Quiz",
+    "passingScore": 60,
+    "sampleSize": 5,
+    "timeLimit": 480,
+    "questions": [
+      {
+        "id": "q1",
+        "type": "multiple-choice",
+        "question": "Which engine answers 'which documents can anne view' for the listing endpoint?",
+        "options": [
+          {
+            "text": "OpenFGA list-objects (reverse query, not per-doc checks)",
+            "isCorrect": true
+          },
+          {
+            "text": "OPA opa eval in a loop over all ids",
+            "isCorrect": false
+          },
+          {
+            "text": "The frontend guessing",
+            "isCorrect": false
+          },
+          {
+            "text": "None — listings skip authorization",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "List-objects is the designed reverse query; per-doc check loops are N+1 authZ (Lesson 14).",
+        "difficulty": 2,
+        "concept": "Multi-Engine Design"
+      },
+      {
+        "id": "q2",
+        "type": "multiple-choice",
+        "question": "Minimum evidence your capstone must present?",
+        "options": [
+          {
+            "text": "Green tests (incl. denies) + latency p50/p99 + decision-diff + rollback steps",
+            "isCorrect": true
+          },
+          {
+            "text": "A screenshot of the login page",
+            "isCorrect": false
+          },
+          {
+            "text": "A promise that it works",
+            "isCorrect": false
+          },
+          {
+            "text": "The policy file alone",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "The Definition of Done is evidence-shaped: tests, numbers, diffs, procedures — the audit triple from Lesson 5, integrated across engines.",
+        "difficulty": 1,
+        "concept": "Capstone Integration"
+      },
+      {
+        "id": "q3",
+        "type": "multiple-choice",
+        "question": "Sharing uses OpenFGA, reads use OPA. Where does tenant equality live?",
+        "options": [
+          {
+            "text": "In OPA policy (claim vs header), tested by the cross-tenant deny-test",
+            "isCorrect": true
+          },
+          {
+            "text": "Nowhere — OpenFGA implies tenancy",
+            "isCorrect": false
+          },
+          {
+            "text": "In the user's browser",
+            "isCorrect": false
+          },
+          {
+            "text": "Tenancy does not matter with sharing",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Each engine owns its seam: ReBAC the sharing graph, Rego the tenant invariant. Assuming one covers the other is the integration bug.",
+        "difficulty": 3,
+        "concept": "Multi-Engine Design"
+      },
+      {
+        "id": "q4",
+        "type": "multiple-choice",
+        "question": "Your PDP p99 is 40ms against a 10ms budget. First correct lever?",
+        "options": [
+          {
+            "text": "Fully-keyed short-TTL cache or embedded evaluation — measured, keeping fail-closed",
+            "isCorrect": true
+          },
+          {
+            "text": "Set failure_mode_allow: true",
+            "isCorrect": false
+          },
+          {
+            "text": "Remove the tenant check",
+            "isCorrect": false
+          },
+          {
+            "text": "Cache one ALLOW for everyone",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Latency fixes preserve the invariant: locality/caching keyed on the full decision inputs (Lessons 11, 19).",
+        "difficulty": 2,
+        "concept": "Latency Measurement"
+      },
+      {
+        "id": "q5",
+        "type": "multiple-choice",
+        "question": "A rule change accidentally allows strangers. What catches it before prod?",
+        "options": [
+          {
+            "text": "CI deny-tests + decision-diff preview showing the flipped verdicts",
+            "isCorrect": true
+          },
+          {
+            "text": "Nothing can catch it",
+            "isCorrect": false
+          },
+          {
+            "text": "The animation colors",
+            "isCorrect": false
+          },
+          {
+            "text": "Longer timeouts",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "The Lesson 20 gates exist for exactly this: stranger-deny tests plus flip-previews on every policy PR.",
+        "difficulty": 1,
+        "concept": "Decision Diffs"
+      },
+      {
+        "id": "q6",
+        "type": "multiple-choice",
+        "question": "Cedar says Allow and OpenFGA says Deny for the same user action. Resolution?",
+        "options": [
+          {
+            "text": "Deny — seams combine deny-biased; investigate which seam owns the invariant",
+            "isCorrect": true
+          },
+          {
+            "text": "Allow — one yes outweighs one no",
+            "isCorrect": false
+          },
+          {
+            "text": "Average the two decisions",
+            "isCorrect": false
+          },
+          {
+            "text": "Ask the end user to decide",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Multi-engine estates deny on disagreement. Divergent engines mean a misplaced invariant — find which seam should own it.",
+        "difficulty": 2,
+        "concept": "Multi-Engine Design"
+      },
+      {
+        "id": "q7",
+        "type": "multiple-choice",
+        "question": "PDP p50 is 3ms and p99 is 400ms. Reading?",
+        "options": [
+          {
+            "text": "Tail dominated by cold starts or retries — warm, cache, or bound the slow path; report both",
+            "isCorrect": true
+          },
+          {
+            "text": "Fine — p50 is what users feel",
+            "isCorrect": false
+          },
+          {
+            "text": "Stop measuring p99",
+            "isCorrect": false
+          },
+          {
+            "text": "Raise the timeout to 30 seconds",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Averages hide the failures your users actually hit. Tail latency is the reliability budget.",
+        "difficulty": 3,
+        "concept": "Latency Measurement"
+      },
+      {
+        "id": "q8",
+        "type": "multiple-choice",
+        "question": "Your second engine adds no decision the first couldn't already make. Problem?",
+        "options": [
+          {
+            "text": "Integration theater — each engine must own a seam (API vs sharing vs app rules)",
+            "isCorrect": true
+          },
+          {
+            "text": "More engines are always better",
+            "isCorrect": false
+          },
+          {
+            "text": "No problem at all",
+            "isCorrect": false
+          },
+          {
+            "text": "Rename the second engine",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Engines multiply operational cost. Each must earn its place with decisions only it can make well.",
+        "difficulty": 1,
+        "concept": "Capstone Integration"
+      }
+    ]
+  },
+  "animation": {
+    "type": "rego-playground",
+    "title": "Pre-Build Verdict Checks",
+    "description": "Validate your capstone's core verdicts before coding",
+    "controls": [
+      "setRegoScenario"
+    ]
+  }
+}

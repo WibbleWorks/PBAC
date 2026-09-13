@@ -1,0 +1,246 @@
+{
+  "id": "opa_data_filtering",
+  "title": "OPA Data Filtering",
+  "subtitle": "Partial evaluation: decisions compiled to WHERE clauses",
+  "level": "advanced",
+  "number": 12,
+  "estimatedTime": 70,
+  "difficulty": 4,
+  "prerequisites": [
+    "opa_production"
+  ],
+  "content": "\n            <div class=\"lesson-section\">\n                <h3>🔽 From Decisions to Filters</h3>\n                <p>Per-row PDP calls don't scale to analytics tables — and the warehouse can't call your sidecar per row. <strong>Partial evaluation</strong> compiles policy + known input into a residual query (e.g. SQL <code>WHERE</code>) the database enforces itself. Unknowns (row fields) stay symbolic; knowns (the requester's attributes) fold into constants. Verified against the OPA filtering docs:</p>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-14\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">Partial eval: knowns fold, unknowns become SQL</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-14')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-rego\"># Last verified: 2026-09 vs OPA docs /filtering + REST /v1/compile\n# METADATA\n# scope: package\n# compile:\n#   unknowns: [input.employees]\npackage filters\n\ninclude if {\n    input.user.role == \"director\"                        # known -&gt; consumed\n    input.employees.department == input.user.department  # unknown == known -&gt; SQL\n}\n\n# POST /v1/compile/filters/include  {\"input\": {\"user\": {...director, engineering...}}}\n# Enterprise OPA SQL shape: { \"result\": { \"query\": \"WHERE employees.department = 'engineering'\" } }\n# OSS OPA 1.8 shape:        { \"result\": {\"queries\": [...], \"support\": [...] } }  (Rego AST + translator)\n# The app appends the filter: SELECT name, salary FROM employees $FILTER;</code></pre>\n                <div id=\"pbac-cb-14\" class=\"code-source\" style=\"display:none;\"># Last verified: 2026-09 vs OPA docs /filtering + REST /v1/compile\n# METADATA\n# scope: package\n# compile:\n#   unknowns: [input.employees]\npackage filters\n\ninclude if {\n    input.user.role == \"director\"                        # known -&gt; consumed\n    input.employees.department == input.user.department  # unknown == known -&gt; SQL\n}\n\n# POST /v1/compile/filters/include  {\"input\": {\"user\": {...director, engineering...}}}\n# Enterprise OPA SQL shape: { \"result\": { \"query\": \"WHERE employees.department = 'engineering'\" } }\n# OSS OPA 1.8 shape:        { \"result\": {\"queries\": [...], \"support\": [...] } }  (Rego AST + translator)\n# The app appends the filter: SELECT name, salary FROM employees $FILTER;</div>\n            </div>\n        \n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>🧪 The Two-User Proof (Docs Tutorial Shape)</h3>\n                <p>Alice (director, engineering) compiles to <code>WHERE department = engineering</code>; Dave (director, marketing) compiles to <code>WHERE department = marketing</code>. Same policy, different filters — the requester's attributes specialize the query. This is ABAC executed by the database, and it is also why input correctness matters twice: a wrong department folds into a wrong filter silently.</p>\n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>🎭 Masking at Compile Time (Enterprise API)</h3>\n                <p>Scope this precisely: on <strong>Enterprise OPA</strong>, the expanded compile API accepts a <code>maskRule</code> and can return SQL-shaped <code>{\"result\": {\"query\": \"...\"}}</code> — columns the policy masks become projections, not just filters. On <strong>OSS OPA 1.8</strong> (pinned in this course), <code>/v1/compile</code> returns <code>{\"result\": {\"queries\": [...], \"support\": ...}}</code> — a Rego AST your translator turns into SQL. Filters decide <em>which rows</em>; masks decide <em>which columns</em> — the Immuta split (Lesson 17) reproduced inside OPA's compiler.</p>\n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>🔍 Critical Review Notes</h3>\n                <ul>\n                    <li><strong>Residual queries need review like policies:</strong> a compiled <code>WHERE true</code> (over-permissive unknowns) is a breach in SQL clothing. Log compiled filters, sample them, alert on tautologies.</li>\n                    <li><strong>Not every rule compiles:</strong> rules with side effects, iteration over unknowns, or non-relational logic may refuse partial eval. Keep filter-path rules relational and simple; keep the exotic logic on the per-request path.</li>\n                    <li><strong>Freshness still applies:</strong> compiled filters embed the requester's attributes at compile time — recompile per request (or per attribute change), never cache across revocations.</li>\n                </ul>\n            </div>\n            \n            <div class=\"lesson-section\" style=\"background: rgba(139, 92, 246, 0.08); border-left: 4px solid var(--ai-purple); padding: 0.75rem 1rem; border-radius: 4px;\">\n                <strong>🎮 Try it in the Policy Lab →</strong> Preview masking outcomes per role before implementing. Use the controls under the canvas to switch scenarios and watch the verdict change.\n            </div>\n        \n        ",
+  "concepts": [
+    "Partial Evaluation",
+    "Knowns vs Unknowns",
+    "Compile to SQL",
+    "Mask Rules",
+    "Residual Query Review",
+    "Filter Freshness"
+  ],
+  "quiz": {
+    "id": "partial_eval_quiz",
+    "title": "OPA Data Filtering Quiz",
+    "passingScore": 60,
+    "sampleSize": 5,
+    "timeLimit": 420,
+    "questions": [
+      {
+        "id": "q1",
+        "type": "multiple-choice",
+        "question": "Why compile policy to SQL instead of calling the PDP per row?",
+        "options": [
+          {
+            "text": "Per-row PDP calls don't scale; the database enforces the compiled filter itself",
+            "isCorrect": true
+          },
+          {
+            "text": "SQL is more secure by nature",
+            "isCorrect": false
+          },
+          {
+            "text": "PDPs cannot read databases",
+            "isCorrect": false
+          },
+          {
+            "text": "Filters are prettier than decisions",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Bulk-data systems need answers shaped like queries (filters), not booleans — the same insight as PlainID Resolution.",
+        "difficulty": 1,
+        "concept": "Partial Evaluation"
+      },
+      {
+        "id": "q2",
+        "type": "multiple-choice",
+        "question": "In the filters package, what do unknowns: [input.employees] declare?",
+        "options": [
+          {
+            "text": "Row fields stay symbolic (become SQL); requester attributes fold into constants",
+            "isCorrect": true
+          },
+          {
+            "text": "Those fields are deleted",
+            "isCorrect": false
+          },
+          {
+            "text": "Those fields are always true",
+            "isCorrect": false
+          },
+          {
+            "text": "The rule is skipped",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Unknowns mark what the compiler cannot know yet. Knowns evaluate away; unknowns become the residual query.",
+        "difficulty": 2,
+        "concept": "Knowns vs Unknowns"
+      },
+      {
+        "id": "q3",
+        "type": "multiple-choice",
+        "question": "Alice (engineering) and Dave (marketing) compile the same policy. Result?",
+        "options": [
+          {
+            "text": "Different WHERE clauses specialized by each requester's attributes",
+            "isCorrect": true
+          },
+          {
+            "text": "Identical filters for both",
+            "isCorrect": false
+          },
+          {
+            "text": "An error — one policy, one filter",
+            "isCorrect": false
+          },
+          {
+            "text": "No filter for directors",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Partial evaluation specializes: same policy plus different knowns yields different residual queries.",
+        "difficulty": 2,
+        "concept": "Compile to SQL"
+      },
+      {
+        "id": "q4",
+        "type": "multiple-choice",
+        "question": "What does the compile API's maskRule option produce?",
+        "options": [
+          {
+            "text": "Column projections (masking) alongside row filters",
+            "isCorrect": true
+          },
+          {
+            "text": "Faster network speeds",
+            "isCorrect": false
+          },
+          {
+            "text": "Stronger passwords",
+            "isCorrect": false
+          },
+          {
+            "text": "More unknown declarations",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Filters gate rows, masks shape columns — the subscription/data split compiled into one artifact.",
+        "difficulty": 2,
+        "concept": "Mask Rules"
+      },
+      {
+        "id": "q5",
+        "type": "multiple-choice",
+        "question": "A compiled filter reads WHERE true. Response?",
+        "options": [
+          {
+            "text": "Treat as a breach-shaped artifact: block, alert, fix the unknowns — never ship tautologies",
+            "isCorrect": true
+          },
+          {
+            "text": "Ship it — true means tested",
+            "isCorrect": false
+          },
+          {
+            "text": "Cache it for performance",
+            "isCorrect": false
+          },
+          {
+            "text": "Add more ORs",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Over-permissive unknowns compile to allow-everything SQL. Residual queries get the same review gates as policies.",
+        "difficulty": 3,
+        "concept": "Residual Query Review"
+      },
+      {
+        "id": "q6",
+        "type": "multiple-choice",
+        "question": "A rule iterates over unknown rows with custom functions. Partial eval?",
+        "options": [
+          {
+            "text": "Likely refuses — keep filter-path rules relational and simple; exotic logic stays per-request",
+            "isCorrect": true
+          },
+          {
+            "text": "Always compiles anything",
+            "isCorrect": false
+          },
+          {
+            "text": "Compiles but runs slower",
+            "isCorrect": false
+          },
+          {
+            "text": "Deletes the rule",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Compilation has a supported fragment. Design filter-path rules for it; don't fight the compiler.",
+        "difficulty": 2,
+        "concept": "Compile to SQL"
+      },
+      {
+        "id": "q7",
+        "type": "multiple-choice",
+        "question": "Compiled filters embed requester attributes. Caching rule?",
+        "options": [
+          {
+            "text": "Recompile per request or attribute change — never cache across revocations",
+            "isCorrect": true
+          },
+          {
+            "text": "Cache one filter for all users",
+            "isCorrect": false
+          },
+          {
+            "text": "Cache for 30 days",
+            "isCorrect": false
+          },
+          {
+            "text": "Compile once at deploy",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "A filter is a decision frozen with yesterday's attributes. Stale filters are stale verdicts.",
+        "difficulty": 2,
+        "concept": "Filter Freshness"
+      },
+      {
+        "id": "q8",
+        "type": "multiple-choice",
+        "question": "Which workload fits data filtering over per-request PDP calls?",
+        "options": [
+          {
+            "text": "Analytics tables and search indexes enforced by another system",
+            "isCorrect": true
+          },
+          {
+            "text": "Single-object API reads",
+            "isCorrect": false
+          },
+          {
+            "text": "Login password checks",
+            "isCorrect": false
+          },
+          {
+            "text": "TLS termination",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Bulk enforcement by foreign systems is the filtering lane; single decisions stay on the PDP hot path.",
+        "difficulty": 1,
+        "concept": "Partial Evaluation"
+      }
+    ]
+  },
+  "animation": {
+    "type": "data-masking-sim",
+    "title": "Compile-Time Masking Preview",
+    "description": "Filters gate rows, masks shape columns — per role",
+    "controls": [
+      "setMaskRole"
+    ]
+  }
+}

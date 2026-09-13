@@ -1,0 +1,245 @@
+{
+  "id": "rbac_abac_rebac",
+  "title": "RBAC vs ABAC vs PBAC vs ReBAC",
+  "subtitle": "Four models, one comparison, no hype",
+  "level": "beginner",
+  "number": 2,
+  "estimatedTime": 60,
+  "difficulty": 2,
+  "prerequisites": [
+    "access_control_intro"
+  ],
+  "content": "\n                        <div class=\"lesson-section\">\n                            <h3>👥 RBAC: Roles as Indirection</h3>\n                            <p><strong>Role-based access control</strong> grants permissions to roles, users to roles. <em>alice is analyst → analyst may read reports.</em> Cheap to start, and it collapses under <strong>role explosion</strong>: analyst-eu, analyst-us, analyst-eu-manager-readonly… each new dimension multiplies roles until nobody can audit who can do what.</p>\n                        </div>\n\n                        <div class=\"lesson-section\">\n                            <h3>🏷️ ABAC: Attributes Decide</h3>\n                            <p><strong>Attribute-based access control</strong> evaluates attributes of subject, resource, action, and environment: <em>allow if subject.dept == resource.dept AND clearance >= 3 AND 09:00 &lt; now &lt; 17:00.</em> Far more expressive — and the rules have to live <em>somewhere</em>. Without a policy engine, ABAC becomes stringly-typed if-statements again.</p>\n                        </div>\n\n                        <div class=\"lesson-section\">\n                            <h3>📜 PBAC: The Delivery Mechanism</h3>\n                            <p><strong>PBAC is not a rival to RBAC/ABAC — it is how you deliver them.</strong> RBAC role mappings, ABAC attribute rules, and ownership checks all become versioned policies evaluated at a PDP. The model answers <em>what logic</em>; PBAC answers <em>where it lives, how it ships, and how it is tested</em>.</p>\n                        </div>\n\n                        <div class=\"lesson-section\">\n                            <h3>🕸️ ReBAC: Relationships Decide (Zanzibar)</h3>\n                            <p><strong>Relationship-based access control</strong>, pioneered by Google Zanzibar and open-sourced as OpenFGA, stores relationship tuples (<em>anne is editor of doc:Q3</em>) and answers <em>does a path exist from subject to object through allowed relations?</em> Ideal for sharing graphs (docs, repos, drives). Concentric inheritance (<em>editor implies viewer</em>) removes whole classes of tuples.</p>\n                        </div>\n\n                        <div class=\"lesson-section\">\n                            <h3>⚖️ Choosing Honestly</h3>\n                            <ul>\n                                <li><strong>Small internal tool, 3 roles, no sharing:</strong> RBAC in a policy file is fine. Do not buy a platform.</li>\n                                <li><strong>Multi-tenant SaaS with per-customer rules:</strong> ABAC-over-PBAC (OPA/Cedar); tenant and attributes in every decision.</li>\n                                <li><strong>Drive/Docs-style sharing, teams, nested groups:</strong> ReBAC (OpenFGA); graphs beat attribute lists.</li>\n                                <li><strong>Data warehouse with masking + row filters:</strong> Immuta-style data policies; column tags, not app code.</li>\n                                <li><strong>Enterprise with auditors and hundred-app sprawl:</strong> PlainID-style orchestration; one policy plane, many enforcement points.</li>\n                            </ul>\n                            <p>Most real estates end up <strong>hybrid</strong>: ReBAC for the sharing graph, ABAC-over-PBAC for API/fine-grained rules, data policies for the warehouse. This course teaches all three seams.</p>\n                        </div>\n                    ",
+  "concepts": [
+    "Role Explosion",
+    "ABAC",
+    "PBAC as Delivery",
+    "ReBAC/Zanzibar",
+    "Model Selection"
+  ],
+  "quiz": {
+    "id": "models_quiz",
+    "title": "Access Models Quiz",
+    "passingScore": 60,
+    "sampleSize": 5,
+    "timeLimit": 420,
+    "questions": [
+      {
+        "id": "q1",
+        "type": "multiple-choice",
+        "question": "A company has 400 roles including analyst-eu-readonly-contractor and manager-us-write-fulltime. What is this failure called?",
+        "options": [
+          {
+            "text": "Role explosion — dimensions multiplied into unauditable roles",
+            "isCorrect": true
+          },
+          {
+            "text": "Privilege creep on a single account",
+            "isCorrect": false
+          },
+          {
+            "text": "A secure default-deny posture",
+            "isCorrect": false
+          },
+          {
+            "text": "Proper separation of duties",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "RBAC scales by role count. Every new dimension (region × seniority × employment type) multiplies roles. The fix is attribute/policy rules that compute access instead of enumerating it.",
+        "difficulty": 1,
+        "concept": "Role Explosion"
+      },
+      {
+        "id": "q2",
+        "type": "multiple-choice",
+        "question": "allow if subject.clearance >= resource.classification AND subject.dept == resource.dept. Which model?",
+        "options": [
+          {
+            "text": "ABAC — decision from subject/resource/environment attributes",
+            "isCorrect": true
+          },
+          {
+            "text": "RBAC — decision from role membership only",
+            "isCorrect": false
+          },
+          {
+            "text": "ReBAC — decision from relationship graph paths",
+            "isCorrect": false
+          },
+          {
+            "text": "DAC — decision by object owner discretion only",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Attribute rules over subject, resource, and environment are the textbook ABAC shape. RBAC would need a pre-built role per (dept × classification) combination.",
+        "difficulty": 1,
+        "concept": "ABAC"
+      },
+      {
+        "id": "q3",
+        "type": "multiple-choice",
+        "question": "How does PBAC relate to RBAC and ABAC?",
+        "options": [
+          {
+            "text": "PBAC is the delivery mechanism: RBAC/ABAC logic expressed as versioned policy evaluated at a PDP",
+            "isCorrect": true
+          },
+          {
+            "text": "PBAC replaces both and they must never be used",
+            "isCorrect": false
+          },
+          {
+            "text": "PBAC is only for networks, RBAC/ABAC only for apps",
+            "isCorrect": false
+          },
+          {
+            "text": "They are competing vendors and cannot be combined",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Model = what logic. PBAC = where it lives and how it ships. A Cedar permit keyed on a role attribute IS RBAC delivered through PBAC.",
+        "difficulty": 2,
+        "concept": "PBAC as Delivery"
+      },
+      {
+        "id": "q4",
+        "type": "multiple-choice",
+        "question": "A docs app needs: anne shared doc:Q3 with team:eng as editors; every editor must read as viewer without extra tuples. Best fit?",
+        "options": [
+          {
+            "text": "ReBAC (OpenFGA): editor relation implies viewer; team membership resolves transitively",
+            "isCorrect": true
+          },
+          {
+            "text": "Pure RBAC with one global editor role",
+            "isCorrect": false
+          },
+          {
+            "text": "A firewall allowlist of IP addresses",
+            "isCorrect": false
+          },
+          {
+            "text": "Column masking in the warehouse",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Sharing graphs with transitive membership and concentric relations are exactly the Zanzibar/OpenFGA sweet spot. Roles cannot express per-object sharing; ABAC lists get unwieldy.",
+        "difficulty": 2,
+        "concept": "ReBAC/Zanzibar"
+      },
+      {
+        "id": "q5",
+        "type": "multiple-choice",
+        "question": "A 3-role internal tool with no sharing and no auditors asks for an enterprise policy platform. Honest advice?",
+        "options": [
+          {
+            "text": "RBAC in a versioned policy file is enough; do not buy a platform yet",
+            "isCorrect": true
+          },
+          {
+            "text": "Deploy all five platforms taught in this course immediately",
+            "isCorrect": false
+          },
+          {
+            "text": "Skip authorization entirely at this scale",
+            "isCorrect": false
+          },
+          {
+            "text": "Hard-code checks in each handler for speed",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Proportionality is a professional skill. PBAC discipline (default-deny, versioned rules, tests) pays off at any size; the heavy platforms earn their keep with scale, sharing graphs, or audit pressure.",
+        "difficulty": 2,
+        "concept": "Model Selection"
+      },
+      {
+        "id": "q6",
+        "type": "multiple-choice",
+        "question": "A role matrix has 12 regions × 4 seniorities × 3 contract types = 144 roles. What single change kills the explosion?",
+        "options": [
+          {
+            "text": "Replace the region/seniority/type dimensions with attributes evaluated in policy",
+            "isCorrect": true
+          },
+          {
+            "text": "Rename roles to shorter codes",
+            "isCorrect": false
+          },
+          {
+            "text": "Merge everything into one admin role",
+            "isCorrect": false
+          },
+          {
+            "text": "Move the matrix to a spreadsheet",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Explosion is multiplicative dimensions. Attributes compute what roles enumerate — 3 attributes replace 144 roles.",
+        "difficulty": 2,
+        "concept": "Role Explosion"
+      },
+      {
+        "id": "q7",
+        "type": "multiple-choice",
+        "question": "Contractors may read only public documents during business hours. How many new roles does the ABAC version need?",
+        "options": [
+          {
+            "text": "Zero — one rule over employment-type, classification, and time attributes",
+            "isCorrect": true
+          },
+          {
+            "text": "One per contractor",
+            "isCorrect": false
+          },
+          {
+            "text": "One per document",
+            "isCorrect": false
+          },
+          {
+            "text": "Three — one per condition",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "ABAC scales by rule, not by role count. Conditions compose inside one rule.",
+        "difficulty": 2,
+        "concept": "ABAC"
+      },
+      {
+        "id": "q8",
+        "type": "multiple-choice",
+        "question": "Alice shares doc:Q3 with Bob as viewer; the whole team:eng edits it. How does the team get viewer access with zero per-doc writes?",
+        "options": [
+          {
+            "text": "Model-level rule (editor implies viewer) plus the team tuple — no per-doc writes",
+            "isCorrect": true
+          },
+          {
+            "text": "Email everyone a share link",
+            "isCorrect": false
+          },
+          {
+            "text": "Make all documents public",
+            "isCorrect": false
+          },
+          {
+            "text": "Copy Bob's tuple to each teammate by hand",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "ReBAC puts the implication in the model (concentric relations) and membership in tuples. Per-doc grants are the RBAC reflex this model replaces.",
+        "difficulty": 2,
+        "concept": "ReBAC/Zanzibar"
+      }
+    ]
+  },
+  "animation": {
+    "type": "rbac-abac-compare",
+    "title": "Same Request, Four Models",
+    "description": "Switch RBAC / ABAC / PBAC / ReBAC and compare the decision logic",
+    "controls": [
+      "setCompareMode"
+    ]
+  }
+}

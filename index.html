@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Policy-Based Access Control Course</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <a href="#lessonContainer" class="skip-link" style="position:absolute; left:-9999px; top:auto; width:1px; height:1px; overflow:hidden;" onfocus="this.style.cssText='position:fixed; left:1rem; top:1rem; width:auto; height:auto; padding:0.5rem 1rem; background:var(--ai-blue); color:#fff; border-radius:6px; z-index:9999;'" onblur="this.style.cssText='position:absolute; left:-9999px; top:auto; width:1px; height:1px; overflow:hidden;'">Skip to content</a>
+    <div class="course-container">
+        <!-- Header -->
+        <header class="course-header">
+            <div class="logo">
+                <button id="navToggle" class="nav-toggle" aria-label="Toggle navigation">☰</button>
+                <span class="ai-icon">🛡️</span>
+                <h1>Policy-Based Access Control</h1>
+            </div>
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <span class="progress-text" id="progressText">Level 1: Foundations</span>
+            </div>
+            <div class="user-stats">
+                <span class="score-display">Score: <span id="currentScore">0</span>%</span>
+                <span class="confidence-level">Confidence: <span id="confidenceLevel">0</span>%</span>
+                <details class="progress-menu" style="position: relative;">
+                    <summary style="cursor: pointer; padding: 0.25rem 0.5rem; border-radius: 4px; color: #c5d4e3; font-size: 0.875rem; list-style: none; display: flex; align-items: center; gap: 0.25rem;" aria-label="Progress menu">💾<span style="font-size:0.7rem;">&#9662;</span></summary>
+                    <div style="position: absolute; right: 0; top: 100%; background: var(--surface-color); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.5rem; box-shadow: var(--shadow-lg); z-index: 100; min-width: 200px; margin-top: 4px;">
+                        <button id="exportProgress" style="display: block; width: 100%; padding: 0.5rem; border: none; background: transparent; color: #c5d4e3; text-align: left; cursor: pointer; border-radius: 4px; font-size: 0.85rem;">💾 Save progress to file</button>
+                        <button id="importProgress" style="display: block; width: 100%; padding: 0.5rem; border: none; background: transparent; color: #c5d4e3; text-align: left; cursor: pointer; border-radius: 4px; font-size: 0.85rem;">📂 Load progress from file</button>
+                        <button id="resetProgress" style="display: block; width: 100%; padding: 0.5rem; border: none; background: transparent; color: #fca5a5; text-align: left; cursor: pointer; border-radius: 4px; font-size: 0.85rem;">🗑 Reset all progress</button>
+                    </div>
+                </details>
+            </div>
+            <input type="file" id="importFileInput" accept=".json" style="display:none;">
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Navigation Sidebar -->
+            <nav class="sidebar">
+                <div class="nav-section">
+                    <h3>📚 Course Outline</h3>
+                    <ul class="nav-list" id="courseNav">
+                        <!-- Navigation will be populated by JavaScript -->
+                    </ul>
+                </div>
+                <div class="nav-section">
+                    <h3>🎯 Quick Stats</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">Completed</span>
+                            <span class="stat-value" id="completedLessons">0</span>
+                            <span class="stat-subtext">lessons</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Mastered</span>
+                            <span class="stat-value" id="masteredTopics">0</span>
+                            <span class="stat-subtext">topics</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Avg Score</span>
+                            <span class="stat-value" id="avgScore">0</span>%
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Content Area -->
+            <div class="content-area">
+                <div class="lesson-container" id="lessonContainer">
+                    <!-- Lesson content will be loaded here -->
+                    <div class="loading-screen" id="loadingScreen">
+                        <div class="loading-content">
+                            <div class="spinner"></div>
+                            <h2>🛡️ Loading PBAC Course...</h2>
+                            <p>Building your policy learning journey...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Interactive Panel -->
+            <aside class="interactive-panel" id="interactivePanel">
+                <div class="panel-header">
+                    <h3>🎮 Policy Lab</h3>
+                    <button class="toggle-btn" id="togglePanel">◀</button>
+                </div>
+                <div class="panel-content" id="panelContent">
+                    <div class="animation-container" id="animationContainer">
+                        <canvas id="aiCanvas" width="400" height="400"></canvas>
+                        <div class="animation-controls" id="animationControls">
+                            <!-- Animation controls will be populated -->
+                        </div>
+                    </div>
+                    <div class="quiz-container" id="quizContainer">
+                        <!-- Quiz content will be loaded here -->
+                    </div>
+                </div>
+            </aside>
+        </main>
+
+        <!-- Modal for full-screen animations -->
+        <div class="modal" id="animationModal">
+            <div class="modal-content">
+                <span class="close-modal">&times;</span>
+                <div class="full-animation" id="fullAnimation">
+                    <canvas id="fullCanvas"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Completion Modal -->
+        <div class="modal" id="completionModal">
+            <div class="modal-content">
+                <span class="close-modal" role="button" tabindex="0" aria-label="Close">&times;</span>
+                <h2>🎉 Congratulations!</h2>
+                <p id="completionMessage"></p>
+                <div class="final-stats">
+                    <div class="final-stat">
+                        <span class="stat-name">Final Score:</span>
+                        <span class="stat-number" id="finalScore">0</span>%
+                    </div>
+                    <div class="final-stat">
+                        <span class="stat-name">Time Spent:</span>
+                        <span class="stat-number" id="timeSpent">0</span> minutes
+                    </div>
+                    <div class="final-stat">
+                        <span class="stat-name">Topics Mastered:</span>
+                        <span class="stat-number" id="topicsMastered">0</span>
+                    </div>
+                </div>
+                <div class="weak-areas" id="weakAreasList">
+                    <h4>📋 Areas for Improvement:</h4>
+                    <ul id="weakAreas"></ul>
+                </div>
+                <button class="btn-primary" id="restartCourse">Start Over</button>
+                <button class="btn-secondary" id="continueLearning">Continue Learning</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts: PBAC animation engine, quiz, foundations (1-5), platforms+capstones (6-20) -->
+    <script src="pbac-animations.js"></script>
+    <script src="quiz-system.js"></script>
+    <script src="course-data.js"></script>
+    <script src="practical-examples.js"></script>
+    <script src="main.js"></script>
+    <script src="auth.js"></script>
+</body>
+</html>

@@ -1,0 +1,245 @@
+{
+  "id": "architecture_patterns",
+  "title": "Enforcement Architecture",
+  "subtitle": "Sidecar, gateway, middleware — latency and failure budgets",
+  "level": "expert",
+  "number": 19,
+  "estimatedTime": 70,
+  "difficulty": 4,
+  "prerequisites": [
+    "plainid_policies"
+  ],
+  "content": "\n            <div class=\"lesson-section\">\n                <h3>🔌 Three Patterns (All Reviewed, All Fail-Closed)</h3>\n                <ul>\n                    <li><strong>Sidecar (rest-rego):</strong> reverse-proxy beside each service; JWT/OIDC or Azure Graph; <code>&lt;5ms</code> overhead, 5000+ req/s; hot reload &lt;1s; Prometheus + structured logs. Zero app code changes.</li>\n                    <li><strong>Gateway (Envoy + OPA):</strong> jwt_authn validates → x-jwt-payload to OPA via ext_authz gRPC → router forwards only on allow. <code>failure_mode_allow: false</code>, 200ms timeout.</li>\n                    <li><strong>Middleware (Keycloak + OPA):</strong> route table maps paths to <code>resource:action</code>; single Starlette/FastAPI middleware resolves user, checks OPA (local or sidecar), caches 5s, denies closed on <code>OPA_FAIL_OPEN=false</code>.</li>\n                </ul>\n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>⏱️ Latency and Availability Budgets</h3>\n                <ul>\n                    <li><strong>Measure first:</strong> sidecar p99 vs gateway hop vs in-process Cedar. Cache decisions (5s TTL, fully-keyed) where freshness allows.</li>\n                    <li><strong>Timeouts are decisions:</strong> every PDP call has a deadline; deadline-exceeded = deny + alert, never queue-forever or allow.</li>\n                    <li><strong>Blast radius:</strong> gateway failure affects all routes (centralize carefully); sidecar failure affects one service; middleware local-mode survives network partitions.</li>\n                </ul>\n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>🪜 Choosing (Decision Tree)</h3>\n                <p><strong>Zero code-change mandate?</strong> sidecar/gateway. <strong>Per-route permission vocabulary?</strong> middleware route table. <strong>Sub-5ms p99?</strong> in-process/embedded or fully-keyed cache. <strong>Multi-team gateway already?</strong> ext_authz filter reuses it. All three can front the same OPA/Cedar policies — pattern and policy are independent choices.</p>\n            </div>\n            \n            <div class=\"lesson-section\" style=\"background: rgba(139, 92, 246, 0.08); border-left: 4px solid var(--ai-purple); padding: 0.75rem 1rem; border-radius: 4px;\">\n                <strong>🎮 Try it in the Policy Lab →</strong> Compare the three patterns on flow, latency, and single-point-of-failure. Use the controls under the canvas to switch scenarios and watch the verdict change.\n            </div>\n        \n        ",
+  "concepts": [
+    "Sidecar Pattern",
+    "Middleware Route Table",
+    "Latency Budgets",
+    "Fail-Closed Timeouts",
+    "Blast Radius"
+  ],
+  "quiz": {
+    "id": "arch_quiz",
+    "title": "Enforcement Architecture Quiz",
+    "passingScore": 60,
+    "sampleSize": 5,
+    "timeLimit": 480,
+    "questions": [
+      {
+        "id": "q1",
+        "type": "multiple-choice",
+        "question": "Which reviewed setup adds <5ms overhead with zero app code changes?",
+        "options": [
+          {
+            "text": "rest-rego sidecar reverse-proxy with hot-reloaded Rego",
+            "isCorrect": true
+          },
+          {
+            "text": "Rewriting every handler by hand",
+            "isCorrect": false
+          },
+          {
+            "text": "Disabling authorization",
+            "isCorrect": false
+          },
+          {
+            "text": "Emailing each request for approval",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "The sidecar's measured profile: <5ms, 5000+ req/s, hot reload <1s — the zero-code-change deployment story.",
+        "difficulty": 1,
+        "concept": "Sidecar Pattern"
+      },
+      {
+        "id": "q2",
+        "type": "multiple-choice",
+        "question": "In Envoy+OPA, what happens when OPA exceeds the 200ms timeout?",
+        "options": [
+          {
+            "text": "Deny (failure_mode_allow: false) — fail closed",
+            "isCorrect": true
+          },
+          {
+            "text": "Allow to keep traffic flowing",
+            "isCorrect": false
+          },
+          {
+            "text": "Retry for 10 minutes",
+            "isCorrect": false
+          },
+          {
+            "text": "Bypass to the backend silently",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Reviewed config is explicit: timeouts deny. Availability pressure never converts to unauthorized access.",
+        "difficulty": 2,
+        "concept": "Fail-Closed Timeouts"
+      },
+      {
+        "id": "q3",
+        "type": "multiple-choice",
+        "question": "What does the middleware route table buy you?",
+        "options": [
+          {
+            "text": "One mapping of routes to resource:action strings, so handlers stay authZ-free and policy stays route-free",
+            "isCorrect": true
+          },
+          {
+            "text": "Faster database queries",
+            "isCorrect": false
+          },
+          {
+            "text": "Free TLS certificates",
+            "isCorrect": false
+          },
+          {
+            "text": "Automatic UI generation",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "The Keycloak-middleware RULES table is the PEP vocabulary: first-match-wins, empty permission = skip (public).",
+        "difficulty": 2,
+        "concept": "Middleware Route Table"
+      },
+      {
+        "id": "q4",
+        "type": "multiple-choice",
+        "question": "Gateway PDP fails. Blast radius vs sidecar PDP fails?",
+        "options": [
+          {
+            "text": "Gateway: all routes denied (central); sidecar: one service denied (isolated)",
+            "isCorrect": true
+          },
+          {
+            "text": "No difference at all",
+            "isCorrect": false
+          },
+          {
+            "text": "Sidecar failure allows everything",
+            "isCorrect": false
+          },
+          {
+            "text": "Gateway failure allows everything",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Centralization concentrates both consistency and failure. Both deny (fail-closed); the radius differs — design runbooks accordingly.",
+        "difficulty": 3,
+        "concept": "Blast Radius"
+      },
+      {
+        "id": "q5",
+        "type": "multiple-choice",
+        "question": "Sub-5ms p99 authZ budget with fresh group data. Best lever?",
+        "options": [
+          {
+            "text": "In-process/embedded evaluation or fully-keyed short-TTL decision cache — measured, not guessed",
+            "isCorrect": true
+          },
+          {
+            "text": "Remove authorization from the path",
+            "isCorrect": false
+          },
+          {
+            "text": "Increase timeouts to 30s",
+            "isCorrect": false
+          },
+          {
+            "text": "Cache one global ALLOW for all users",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Latency budgets are met with locality (embedded PDP) or keyed caching — never by skipping decisions or sharing verdicts across subjects.",
+        "difficulty": 3,
+        "concept": "Latency Budgets"
+      },
+      {
+        "id": "q6",
+        "type": "multiple-choice",
+        "question": "The route table has overlapping regexes and first match wins. Hazard?",
+        "options": [
+          {
+            "text": "A broad early rule shadows stricter later ones — order specific-first and test overlaps",
+            "isCorrect": true
+          },
+          {
+            "text": "None — overlap is harmless",
+            "isCorrect": false
+          },
+          {
+            "text": "Matching gets faster",
+            "isCorrect": false
+          },
+          {
+            "text": "The table auto-sorts itself",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "First-match routing is priority routing. Untested overlaps silently downgrade strict routes to lax ones.",
+        "difficulty": 2,
+        "concept": "Middleware Route Table"
+      },
+      {
+        "id": "q7",
+        "type": "multiple-choice",
+        "question": "A gateway PDP upgrade goes bad mid-deploy. Containment?",
+        "options": [
+          {
+            "text": "Canary plus instant rollback via bundle and config pin; per-route cutover bounds the radius",
+            "isCorrect": true
+          },
+          {
+            "text": "Upgrade everything at once for consistency",
+            "isCorrect": false
+          },
+          {
+            "text": "Disable the PDP during upgrade",
+            "isCorrect": false
+          },
+          {
+            "text": "Hope the bad version is compatible",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Centralized enforcement centralizes failure. Upgrade like it can fail — because it can.",
+        "difficulty": 3,
+        "concept": "Blast Radius"
+      },
+      {
+        "id": "q8",
+        "type": "multiple-choice",
+        "question": "Sidecar and app parse the JWT differently and disagree on identity. Result?",
+        "options": [
+          {
+            "text": "Authorization decisions on the wrong subject — one shared identity-extraction point",
+            "isCorrect": true
+          },
+          {
+            "text": "Faster decisions",
+            "isCorrect": false
+          },
+          {
+            "text": "Nothing observable",
+            "isCorrect": false
+          },
+          {
+            "text": "Stronger security through diversity",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Two identity truths means decisions about someone else. AuthN parsing happens once, upstream of all enforcement.",
+        "difficulty": 1,
+        "concept": "Sidecar Pattern"
+      }
+    ]
+  },
+  "animation": {
+    "type": "auth-patterns",
+    "title": "Pattern Trade-off Board",
+    "description": "Latency, failure radius, and code-change cost per pattern",
+    "controls": [
+      "setAuthPattern"
+    ]
+  }
+}

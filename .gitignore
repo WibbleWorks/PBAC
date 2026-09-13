@@ -1,0 +1,13 @@
+# Sensitive config — do not commit
+auth-config.json
+
+# Node
+node_modules/
+package.json
+package-lock.json
+
+# Test artifacts
+.playwright-mcp/
+
+# OS
+.DS_Store

@@ -1,0 +1,245 @@
+{
+  "id": "migration_rbac_pbac",
+  "title": "Migrating RBAC to PBAC",
+  "subtitle": "Strangler pattern for brownfield estates",
+  "level": "expert",
+  "number": 21,
+  "estimatedTime": 60,
+  "difficulty": 4,
+  "prerequisites": [
+    "testing_verification"
+  ],
+  "content": "\n            <div class=\"lesson-section\">\n                <h3>🌿 The Strangler Sequence</h3>\n                <ol>\n                    <li><strong>Inventory:</strong> extract every inline check into a catalog (route → current rule). You cannot migrate what you cannot list.</li>\n                    <li><strong>Shadow mode:</strong> deploy PDP beside the old checks; log agreements/disagreements without enforcing. Disagreements are your spec.</li>\n                    <li><strong>Role-import:</strong> encode existing roles as policy first (RBAC-in-PBAC) — zero behavior change, full test harness.</li>\n                    <li><strong>Attribute enrichment:</strong> add tenant/owner/MFA rules one invariant at a time, each with deny-tests.</li>\n                    <li><strong>Cutover per route:</strong> flip enforcement route-by-route with instant rollback (bundle version pin).</li>\n                    <li><strong>Delete the old code:</strong> the strangler is done only when inline checks are gone, not when the PDP exists.</li>\n                </ol>\n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>⚠️ Brownfield Hazards</h3>\n                <ul>\n                    <li><strong>Hidden admin backdoors</strong> (<code>if email == 'ceo@…'</code>) surface in shadow-mode diffs — decide explicitly, never silently port.</li>\n                    <li><strong>Role explosion becomes policy debt</strong> if you transliterate 400 roles 1:1 — collapse dimensions into attributes during import.</li>\n                    <li><strong>Dual-write tuples need an outbox, not a distributed transaction:</strong> share-actions write old ACL rows AND emit tuple-writes via transactional outbox; there is no XA across your DB and OpenFGA — design for at-least-once + reconciliation.</li>\n                    <li><strong>Enforcement outside services:</strong> stored procedures, BI semantic layers, and warehouse grants are not lintable service code — inventory them as out-of-scope enforcement with owners, or the strangler strangles nothing.</li>\n                    <li><strong>PII in shadow logs:</strong> shadow mode records real requests; redact payloads/attributes in the diff pipeline or the migration creates its own breach.</li>\n                    <li><strong>Attribute-source cleanup:</strong> HR/IdP feeds, stale groups, and dead roles migrate too — or the new PDP faithfully enforces garbage.</li>\n                </ul>\n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>📏 Done Criteria (Tolerance-Based, Not Zero-Based)</h3>\n                <p>A long-tail estate will never show a literal zero diff. Exit instead on: inline authZ conditionals at zero in services (linted) with a risk-accepted inventory of out-of-scope enforcement; shadow diff <strong>below an agreed threshold on sampled production inputs</strong> with every residual exception named, owned, and expiry-dated; per-route rollback rehearsed; freeze windows and audit sign-off completed; old code deleted route-by-route. Migration without deletion is just two systems to breach.</p>\n            </div>\n            \n            <div class=\"lesson-section\" style=\"background: rgba(139, 92, 246, 0.08); border-left: 4px solid var(--ai-purple); padding: 0.75rem 1rem; border-radius: 4px;\">\n                <strong>🎮 Try it in the Policy Lab →</strong> Compare RBAC transliteration vs attribute-collapsed policy on role count. Use the controls under the canvas to switch scenarios and watch the verdict change.\n            </div>\n        \n        ",
+  "concepts": [
+    "Strangler Pattern",
+    "Shadow Mode Diffs",
+    "Role Import",
+    "Per-Route Cutover",
+    "Migration Done Criteria"
+  ],
+  "quiz": {
+    "id": "migration_quiz",
+    "title": "Migration Quiz",
+    "passingScore": 60,
+    "sampleSize": 5,
+    "timeLimit": 480,
+    "questions": [
+      {
+        "id": "q1",
+        "type": "multiple-choice",
+        "question": "What runs first in a safe RBAC→PBAC migration?",
+        "options": [
+          {
+            "text": "Inventory of every inline check + shadow-mode PDP logging diffs without enforcing",
+            "isCorrect": true
+          },
+          {
+            "text": "Deleting all old authorization code immediately",
+            "isCorrect": false
+          },
+          {
+            "text": "Flipping every route to enforce on day one",
+            "isCorrect": false
+          },
+          {
+            "text": "Buying the most expensive platform",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Shadow diffs ARE the migration spec: every disagreement between old checks and new policy is the first strangler decision to make explicitly.",
+        "difficulty": 2,
+        "concept": "Strangler Pattern"
+      },
+      {
+        "id": "q2",
+        "type": "multiple-choice",
+        "question": "Shadow mode shows the old code allows what new policy denies for the CEO's email. Correct move?",
+        "options": [
+          {
+            "text": "Treat as explicit decision: encode or reject the backdoor deliberately, with approvers",
+            "isCorrect": true
+          },
+          {
+            "text": "Silently port the backdoor into policy",
+            "isCorrect": false
+          },
+          {
+            "text": "Ignore all diffs and cut over anyway",
+            "isCorrect": false
+          },
+          {
+            "text": "Delete the logs",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Hidden grants surface in diffs precisely so they get deliberate treatment. Silent ports preserve invisible privilege.",
+        "difficulty": 3,
+        "concept": "Shadow Mode Diffs"
+      },
+      {
+        "id": "q3",
+        "type": "multiple-choice",
+        "question": "You have 400 roles (region × seniority × type). How to import them?",
+        "options": [
+          {
+            "text": "Collapse dimensions into attributes; encode rules, not role enumerations",
+            "isCorrect": true
+          },
+          {
+            "text": "Transliterate 1:1 into 400 policies",
+            "isCorrect": false
+          },
+          {
+            "text": "Delete all roles and allow everyone",
+            "isCorrect": false
+          },
+          {
+            "text": "Keep them in a spreadsheet",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "1:1 transliteration preserves role explosion as policy debt. Import the roles, then collapse dimensions into attributes — import is the step, collapse is the goal.",
+        "difficulty": 2,
+        "concept": "Role Import"
+      },
+      {
+        "id": "q4",
+        "type": "multiple-choice",
+        "question": "Why cut over route-by-route instead of big-bang?",
+        "options": [
+          {
+            "text": "Blast radius control + instant per-route rollback via bundle pin",
+            "isCorrect": true
+          },
+          {
+            "text": "Big-bang is always safer",
+            "isCorrect": false
+          },
+          {
+            "text": "Routes cannot share a PDP",
+            "isCorrect": false
+          },
+          {
+            "text": "Rollback is impossible anyway",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Per-route cutover bounds every failure and makes rollback a version pin, not a war room.",
+        "difficulty": 2,
+        "concept": "Per-Route Cutover"
+      },
+      {
+        "id": "q5",
+        "type": "multiple-choice",
+        "question": "When is the migration actually done?",
+        "options": [
+          {
+            "text": "Old checks deleted route-by-route; diff below threshold with owned exceptions; rollback rehearsed; sign-off complete",
+            "isCorrect": true
+          },
+          {
+            "text": "When the PDP is installed (old code still running)",
+            "isCorrect": false
+          },
+          {
+            "text": "When the kickoff meeting happens",
+            "isCorrect": false
+          },
+          {
+            "text": "When the PDP container image is pinned (necessary hygiene, not migration-done)",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Tolerance-based exit: literal zero-diff is unattainable on long-tail estates. Done = old path gone, residuals named/owned/expiry-dated, rollback rehearsed. Coexistence is two systems to breach.",
+        "difficulty": 1,
+        "concept": "Migration Done Criteria"
+      },
+      {
+        "id": "q6",
+        "type": "multiple-choice",
+        "question": "Import discovers thirty roles nobody can explain. Treatment?",
+        "options": [
+          {
+            "text": "Quarantine with deny-by-default replacements plus owner attestation before porting",
+            "isCorrect": true
+          },
+          {
+            "text": "Port all thirty verbatim",
+            "isCorrect": false
+          },
+          {
+            "text": "Delete all thirty immediately",
+            "isCorrect": false
+          },
+          {
+            "text": "Ignore them and move on",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Unexplained roles are unexploded ordnance. Quarantine first; port only what an owner will sign for.",
+        "difficulty": 2,
+        "concept": "Role Import"
+      },
+      {
+        "id": "q7",
+        "type": "multiple-choice",
+        "question": "A route does three different things and has no clean permission. Cutover approach?",
+        "options": [
+          {
+            "text": "Split the handler, or gate the narrow union with an expiry plus a refactor ticket",
+            "isCorrect": true
+          },
+          {
+            "text": "One broad permit forever",
+            "isCorrect": false
+          },
+          {
+            "text": "Skip the route entirely",
+            "isCorrect": false
+          },
+          {
+            "text": "Restrict it to admin-only permanently",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Unmappable routes are design debt surfacing. Time-box the broad gate and pay down the split.",
+        "difficulty": 3,
+        "concept": "Per-Route Cutover"
+      },
+      {
+        "id": "q8",
+        "type": "multiple-choice",
+        "question": "Shadow diffs show 99% agreement. How do you treat the 1%?",
+        "options": [
+          {
+            "text": "As the entire migration spec — triage every disagreement explicitly",
+            "isCorrect": true
+          },
+          {
+            "text": "As noise to ignore",
+            "isCorrect": false
+          },
+          {
+            "text": "Auto-allow the differences",
+            "isCorrect": false
+          },
+          {
+            "text": "Delete the diff logs",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Agreement is uninteresting; disagreement is the spec. The 1% contains every backdoor and every misunderstanding.",
+        "difficulty": 1,
+        "concept": "Shadow Mode Diffs"
+      }
+    ]
+  },
+  "animation": {
+    "type": "rbac-abac-compare",
+    "title": "Migration: Roles to Rules",
+    "description": "Watch role count collapse as dimensions become attributes",
+    "controls": [
+      "setCompareMode"
+    ]
+  }
+}

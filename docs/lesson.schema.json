@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/your-repo/PBAC/docs/lesson.schema.json",
+  "title": "PBAC Course Lesson",
+  "description": "Schema for a single lesson in the Policy-Based Access Control Course. Corresponds to an entry under COURSE_DATA.levels.<levelKey>.lessons.<lessonId> in course-data.js or practical-examples.js. See docs/CONTENT_MODEL.md for guidance.",
+
+  "type": "object",
+  "required": ["id", "title", "subtitle", "level", "number", "estimatedTime", "difficulty", "prerequisites", "content", "concepts", "quiz", "animation"],
+  "additionalProperties": false,
+
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Snake-case identifier unique across all lessons, e.g. 'rego_foundations', 'immuta_policies'.",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "title": {
+      "type": "string",
+      "description": "Short display title in the navigation and at the top of the lesson."
+    },
+    "subtitle": {
+      "type": "string",
+      "description": "Tagline shown beneath the title."
+    },
+    "level": {
+      "type": "string",
+      "description": "The level tier the lesson belongs to.",
+      "enum": ["beginner", "intermediate", "advanced", "expert", "research"]
+    },
+    "number": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Sequential lesson number across the whole course (1..24), no gaps."
+    },
+    "estimatedTime": {
+      "type": "integer",
+      "minimum": 5,
+      "maximum": 720,
+      "description": "Estimated time to complete in minutes. Be honest. Capstones are 480 across sessions with milestones."
+    },
+    "difficulty": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5,
+      "description": "1 = gentle intro, 5 = research-level. Used only for display, not gating."
+    },
+    "prerequisites": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of lesson IDs that must be completed before this lesson unlocks. Empty array means no prereqs."
+    },
+    "unlocked": {
+      "type": "boolean",
+      "default": false,
+      "description": "False = locked behind prereqs (the default). True = always unlocked."
+    },
+    "content": {
+      "type": "string",
+      "description": "Lesson body as an HTML string (rendered inside the lesson container). Use <div class=\"lesson-section\"> blocks. May embed ${createCodeBlock(...)} or ${renderPolicyLab(...)} helpers in practical-examples.js."
+    },
+    "concepts": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Concept tags this lesson covers. Used by adaptive-learning reinforcement. At least one concept should be referenced by each quiz question."
+    },
+    "quiz": {
+      "$ref": "#/$defs/Quiz"
+    },
+    "animation": {
+      "$ref": "#/$defs/Animation"
+    }
+  },
+
+  "$defs": {
+    "Quiz": {
+      "type": "object",
+      "required": ["id", "title", "passingScore", "timeLimit", "questions"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "description": "Snake-case quiz id, e.g. 'rego_found_quiz'." },
+        "title": { "type": "string" },
+        "passingScore": {
+          "type": "integer",
+          "description": "0-100. MUST be reachable by the discretized scores of N questions, e.g. 60 for 5 questions (achievable scores: 0/20/40/60/80/100).",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "timeLimit": { "type": "integer", "minimum": 30, "description": "Seconds to complete before auto-submit." },
+        "sampleSize": {
+          "type": "integer",
+          "minimum": 5,
+          "description": "Questions sampled per attempt from a larger bank. Course convention: bank of 8, sampleSize 5, so passingScore math stays on the 5-question ladder."
+        },
+        "questions": {
+          "type": "array",
+          "minItems": 8,
+          "description": "Question bank: at least 8 per quiz; sampleSize are drawn per attempt (see sampleSize).",
+          "items": { "$ref": "#/$defs/Question" }
+        }
+      }
+    },
+    "Question": {
+      "type": "object",
+      "required": ["id", "type", "question", "options", "explanation", "difficulty", "concept"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^q[0-9]+$", "description": "Within-quiz id like 'q1'." },
+        "type": { "type": "string", "enum": ["multiple-choice"] },
+        "question": { "type": "string" },
+        "options": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "description": "EXACTLY four answer options (course convention).",
+          "items": {
+            "type": "object",
+            "required": ["text", "isCorrect"],
+            "additionalProperties": false,
+            "properties": {
+              "text": { "type": "string" },
+              "isCorrect": { "type": "boolean", "description": "True for the one correct option." }
+            }
+          }
+        },
+        "explanation": { "type": "string", "description": "Shown in quiz review mode; explain WHY the correct answer is correct." },
+        "difficulty": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "concept": { "type": "string", "description": "A concept tag referenced by the lesson's concepts array." }
+      }
+    },
+    "Animation": {
+      "type": "object",
+      "required": ["type", "title", "description", "controls"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Implementation key matched in pbac-animations.js drawFrame(). Adding new types requires implementing the draw method.",
+          "enum": [
+            "policy-flow",
+            "rbac-abac-compare",
+            "default-deny-sim",
+            "rego-playground",
+            "cedar-sim",
+            "openfga-graph",
+            "data-masking-sim",
+            "auth-patterns"
+          ]
+        },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "controls": {
+          "type": "array",
+          "description": "List of control handler names implemented on window.animations.",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

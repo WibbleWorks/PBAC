@@ -1,0 +1,244 @@
+{
+  "id": "cedar_foundations",
+  "title": "Cedar Foundations",
+  "subtitle": "Permit, forbid, and the request shape",
+  "level": "intermediate",
+  "number": 8,
+  "estimatedTime": 60,
+  "difficulty": 3,
+  "prerequisites": [
+    "rego_api_authz"
+  ],
+  "content": "\n            <div class=\"lesson-section\">\n                <h3>✅ Permit, ⛔ Forbid, 🤷 Default Deny</h3>\n                <p>Cedar decides <strong>Allow</strong> iff <em>at least one permit matches AND no forbid matches</em>. Everything else denies. Three canonical policies below are quoted from the Cedar documentation set (verified Sept 2026):</p>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-6\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">Cedar: specific permit, conditional permit, overriding forbid</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-6')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-cedar\">// Last verified: 2026-09 vs cedar-policy/cedar-docs syntax-policy.md\npermit (\n    principal == User::\"alice\",\n    action == Action::\"view\",\n    resource == Photo::\"VacationPhoto94.jpg\"\n);\n\n// Owner-scoped edit: when-condition binds resource to principal\npermit (\n    principal,\n    action == Action::\"editPhoto\",\n    resource\n)\nwhen {\n    resource.owner == principal\n};\n\n// Forbid wins: private photos stay private (permit alone is not enough)\nforbid (\n    principal,\n    action,\n    resource\n)\nwhen {\n    resource.private\n}\nunless {\n    principal == resource.owner\n};</code></pre>\n                <div id=\"pbac-cb-6\" class=\"code-source\" style=\"display:none;\">// Last verified: 2026-09 vs cedar-policy/cedar-docs syntax-policy.md\npermit (\n    principal == User::\"alice\",\n    action == Action::\"view\",\n    resource == Photo::\"VacationPhoto94.jpg\"\n);\n\n// Owner-scoped edit: when-condition binds resource to principal\npermit (\n    principal,\n    action == Action::\"editPhoto\",\n    resource\n)\nwhen {\n    resource.owner == principal\n};\n\n// Forbid wins: private photos stay private (permit alone is not enough)\nforbid (\n    principal,\n    action,\n    resource\n)\nwhen {\n    resource.private\n}\nunless {\n    principal == resource.owner\n};</div>\n            </div>\n        \n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>📨 The Authorization Request (Terminology, Verified)</h3>\n                <p>Cedar docs define an authorization request as <em>principal × action × resource × context</em>: the app supplies entity details (principals, resources), context (IP, auth method, time), and the policy set; the engine returns <strong>decision + determining policies</strong>. If you remember the XACML boxes from Lesson 3, this is the same idea with Cedar nouns.</p>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-7\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">Cedar request: entities + context travel with every call</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-7')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-json\">// SHAPE-ILLUSTRATIVE entity/request JSON — the exact 'cedar authorize'\n// flags and __entity/type+id forms vary by CLI version. Confirm with\n// 'cedar authorize --help' for your pinned version before scripting.\n// Semantics (principal/action/resource/context + entity attrs) verified\n// 2026-09 vs cedar-policy/cedar-docs terminology.\n// Entities the app must supply:\n{ \"uid\": { \"type\": \"User\", \"id\": \"alice\" },\n  \"attrs\": { \"department\": \"finance\", \"clearance\": 3 },\n  \"parents\": [{ \"type\": \"Team\", \"id\": \"eng\" }] }\n\n// Request: alice views VacationPhoto94.jpg from office IP with MFA\n{ \"principal\": \"User::\\\"alice\\\"\", \"action\": \"Action::\\\"view\\\"\",\n  \"resource\": \"Photo::\\\"VacationPhoto94.jpg\\\"\",\n  \"context\": { \"ip\": \"10.0.4.12\", \"mfa\": true } }</code></pre>\n                <div id=\"pbac-cb-7\" class=\"code-source\" style=\"display:none;\">// SHAPE-ILLUSTRATIVE entity/request JSON — the exact 'cedar authorize'\n// flags and __entity/type+id forms vary by CLI version. Confirm with\n// 'cedar authorize --help' for your pinned version before scripting.\n// Semantics (principal/action/resource/context + entity attrs) verified\n// 2026-09 vs cedar-policy/cedar-docs terminology.\n// Entities the app must supply:\n{ \"uid\": { \"type\": \"User\", \"id\": \"alice\" },\n  \"attrs\": { \"department\": \"finance\", \"clearance\": 3 },\n  \"parents\": [{ \"type\": \"Team\", \"id\": \"eng\" }] }\n\n// Request: alice views VacationPhoto94.jpg from office IP with MFA\n{ \"principal\": \"User::\\\"alice\\\"\", \"action\": \"Action::\\\"view\\\"\",\n  \"resource\": \"Photo::\\\"VacationPhoto94.jpg\\\"\",\n  \"context\": { \"ip\": \"10.0.4.12\", \"mfa\": true } }</div>\n            </div>\n        \n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>🔍 Critical Review Notes</h3>\n                <ul>\n                    <li><strong>Forbid is not standalone:</strong> the docs are explicit — a forbid-only set denies everything because no permit matches. Every forbid needs its permit partner.</li>\n                    <li><strong><code>unless</code> vs <code>when</code>:</strong> <code>when</code> must hold for the policy to apply; <code>unless</code> must NOT hold. The private-photo forbid reads: <em>applies when private, except when requester is owner</em>.</li>\n                    <li><strong>Rego vs Cedar instinct check:</strong> Rego asks <em>is allow derivable?</em>; Cedar asks <em>does a permit match AND no forbid match?</em> Both default-deny; Cedar makes the override explicit.</li>\n                </ul>\n            </div>\n            \n            <div class=\"lesson-section\" style=\"background: rgba(139, 92, 246, 0.08); border-left: 4px solid var(--ai-purple); padding: 0.75rem 1rem; border-radius: 4px;\">\n                <strong>🎮 Try it in the Policy Lab →</strong> Run the four photo scenarios: public vs private × owner vs stranger. Use the controls under the canvas to switch scenarios and watch the verdict change.\n            </div>\n        \n        ",
+  "concepts": [
+    "Cedar Permit",
+    "Cedar Forbid Override",
+    "When/Unless Clauses",
+    "Cedar Request Shape"
+  ],
+  "quiz": {
+    "id": "cedar_found_quiz",
+    "title": "Cedar Foundations Quiz",
+    "passingScore": 60,
+    "sampleSize": 5,
+    "timeLimit": 420,
+    "questions": [
+      {
+        "id": "q1",
+        "type": "multiple-choice",
+        "question": "When does Cedar return Allow?",
+        "options": [
+          {
+            "text": "At least one permit matches AND no forbid matches",
+            "isCorrect": true
+          },
+          {
+            "text": "When no policy matches at all",
+            "isCorrect": false
+          },
+          {
+            "text": "When a forbid matches, regardless of permits",
+            "isCorrect": false
+          },
+          {
+            "text": "Only when every permit in the set matches",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Cedar's own terminology: decision Allow requires a matching permit and zero matching forbids. Forbid always overrides.",
+        "difficulty": 1,
+        "concept": "Cedar Permit"
+      },
+      {
+        "id": "q2",
+        "type": "multiple-choice",
+        "question": "Bob views Alice's private photo. A permit matches (public-view rule) and the private-photo forbid matches. Verdict?",
+        "options": [
+          {
+            "text": "Deny — forbid overrides permit",
+            "isCorrect": true
+          },
+          {
+            "text": "Allow — permit was listed first",
+            "isCorrect": false
+          },
+          {
+            "text": "Allow — Bob asked politely",
+            "isCorrect": false
+          },
+          {
+            "text": "Error — policies conflict",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Order is irrelevant in Cedar; forbid wins by semantics, not position. The unless-owner escape is what saves Alice viewing her own private photo.",
+        "difficulty": 2,
+        "concept": "Cedar Forbid Override"
+      },
+      {
+        "id": "q3",
+        "type": "multiple-choice",
+        "question": "In forbid(...) when { resource.private } unless { principal == resource.owner }, what does unless do?",
+        "options": [
+          {
+            "text": "The forbid does NOT apply when the requester is the owner",
+            "isCorrect": true
+          },
+          {
+            "text": "The forbid applies ONLY to the owner",
+            "isCorrect": false
+          },
+          {
+            "text": "It is a comment with no effect",
+            "isCorrect": false
+          },
+          {
+            "text": "It converts the forbid into a permit",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "unless = negative condition. Policy applies when when-holds AND unless-does-not-hold. Owner viewing own private photo escapes the forbid.",
+        "difficulty": 2,
+        "concept": "When/Unless Clauses"
+      },
+      {
+        "id": "q4",
+        "type": "multiple-choice",
+        "question": "A Cedar request must include which four elements?",
+        "options": [
+          {
+            "text": "Principal, action, resource, context (+ entities and policies)",
+            "isCorrect": true
+          },
+          {
+            "text": "Username and password only",
+            "isCorrect": false
+          },
+          {
+            "text": "IP address only",
+            "isCorrect": false
+          },
+          {
+            "text": "The full database",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Per Cedar terminology: the engine evaluates (principal, action, resource, context) against entities + policies and returns decision + determining policies.",
+        "difficulty": 1,
+        "concept": "Cedar Request Shape"
+      },
+      {
+        "id": "q5",
+        "type": "multiple-choice",
+        "question": "A policy set contains ONLY forbid policies. What happens to all requests?",
+        "options": [
+          {
+            "text": "All deny — no permit can match",
+            "isCorrect": true
+          },
+          {
+            "text": "All allow — forbids are ignored alone",
+            "isCorrect": false
+          },
+          {
+            "text": "The engine crashes",
+            "isCorrect": false
+          },
+          {
+            "text": "Only admins are affected",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Docs-verified: forbid only restricts; granting requires a permit. Forbid-only sets are a classic misconfiguration this quiz exists to prevent.",
+        "difficulty": 2,
+        "concept": "Cedar Forbid Override"
+      },
+      {
+        "id": "q6",
+        "type": "multiple-choice",
+        "question": "An isAuthorized call omits context.mfa but policy branches on it. Result?",
+        "options": [
+          {
+            "text": "Attribute access errors — the erroring policy is skipped, deny follows; check errors diagnostics and the schema",
+            "isCorrect": true
+          },
+          {
+            "text": "The engine defaults it to true",
+            "isCorrect": false
+          },
+          {
+            "text": "The engine guesses from the IP",
+            "isCorrect": false
+          },
+          {
+            "text": "Automatic permit for resilience",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Missing-attribute access is an evaluation error, not false: skip-on-error plus default-deny yields deny. Debug via errors diagnostics, prevent via schema validation.",
+        "difficulty": 2,
+        "concept": "Cedar Request Shape"
+      },
+      {
+        "id": "q7",
+        "type": "multiple-choice",
+        "question": "Restate forbid(...) when {A} unless {B} as prose.",
+        "options": [
+          {
+            "text": "Forbids when A holds, except where B holds",
+            "isCorrect": true
+          },
+          {
+            "text": "Forbids only when A and B both hold",
+            "isCorrect": false
+          },
+          {
+            "text": "Permits when A holds",
+            "isCorrect": false
+          },
+          {
+            "text": "Ignores B entirely",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "when gates applicability; unless carves the exception. Misreading the polarity inverts the protection.",
+        "difficulty": 3,
+        "concept": "When/Unless Clauses"
+      },
+      {
+        "id": "q8",
+        "type": "multiple-choice",
+        "question": "Two permits match overlapping scopes. Result?",
+        "options": [
+          {
+            "text": "Allow — one matching permit suffices; forbids are still checked",
+            "isCorrect": true
+          },
+          {
+            "text": "Deny — overlapping permits are ambiguous",
+            "isCorrect": false
+          },
+          {
+            "text": "Engine error on overlap",
+            "isCorrect": false
+          },
+          {
+            "text": "First-listed permit wins, rest ignored",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Permits are existential, not exclusive. Order never matters in Cedar — only match plus absence of forbid.",
+        "difficulty": 1,
+        "concept": "Cedar Permit"
+      }
+    ]
+  },
+  "animation": {
+    "type": "cedar-sim",
+    "title": "Cedar Decision Simulator",
+    "description": "Permit/forbid interaction across public/private photo scenarios",
+    "controls": [
+      "setCedarScenario"
+    ]
+  }
+}

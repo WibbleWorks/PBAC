@@ -1,0 +1,246 @@
+{
+  "id": "testing_verification",
+  "title": "Testing and Verification",
+  "subtitle": "opa test, schema validation, CI gates, reviews",
+  "level": "expert",
+  "number": 20,
+  "estimatedTime": 70,
+  "difficulty": 4,
+  "prerequisites": [
+    "architecture_patterns"
+  ],
+  "content": "\n            <div class=\"lesson-section\">\n                <h3>🧪 The Four Suites (Every Engine)</h3>\n                <ul>\n                    <li><strong>Allow-tests:</strong> each permit rule's minimal passing input (<code>opa test</code>, Cedar <code>authorize</code> corpus, OpenFGA check fixtures).</li>\n                    <li><strong>Deny-tests:</strong> stranger, wrong tenant, private-not-owner, expired MFA — including the verbatim cross-tenant test from Lesson 7.</li>\n                    <li><strong>Regression-tests:</strong> every incident becomes a named permanent test.</li>\n                    <li><strong>Property-tests:</strong> unknown roles, missing fields, empty inputs → all deny.</li>\n                </ul>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-25\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">Verification commands per engine (CI-gated)</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-25')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-bash\"># OPA: table-style tests live beside policy (policies/*_test.rego)\n# test_admin_full_access, test_analyst_team_write,\n# test_analyst_denied_other_tenant, test_stranger_denied_everything\nopa test ./policies/ -v --coverage   # CI fails on red OR uncovered rules\n\n# Cedar: validate policy against schema before any deploy\ncedar validate --schema schema.cedar --policies policies.cedar\n\n# OpenFGA: replay check fixtures against staging (never only playground)\nfga check --store-id $STAGE user:eve viewer document:Q3  # expect false</code></pre>\n                <div id=\"pbac-cb-25\" class=\"code-source\" style=\"display:none;\"># OPA: table-style tests live beside policy (policies/*_test.rego)\n# test_admin_full_access, test_analyst_team_write,\n# test_analyst_denied_other_tenant, test_stranger_denied_everything\nopa test ./policies/ -v --coverage   # CI fails on red OR uncovered rules\n\n# Cedar: validate policy against schema before any deploy\ncedar validate --schema schema.cedar --policies policies.cedar\n\n# OpenFGA: replay check fixtures against staging (never only playground)\nfga check --store-id $STAGE user:eve viewer document:Q3  # expect false</div>\n            </div>\n        \n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>🚦 CI Gates and Change Review</h3>\n                <ul>\n                    <li><strong>Gate:</strong> fmt + tests + coverage + schema-validate on every PR touching policy, tuples, or schemas. Red = no merge.</li>\n                    <li><strong>Two-person rule:</strong> policy changes need a second approver who replays the decision diff (which requests flip verdict?).</li>\n                    <li><strong>Decision-diff previews:</strong> run the new bundle against sampled production inputs; list every flipped verdict for the reviewer.</li>\n                    <li><strong>AI-generated policy:</strong> untrusted input — same gates, plus a human owns the merge.</li>\n                </ul>\n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>📊 Coverage Lies to Watch</h3>\n                <p>100% rule coverage with only allow-tests is a green lie. Require <strong>deny-coverage</strong> (each rule has a failing-twin test) and <strong>default-coverage</strong> (empty/garbage inputs deny). Pin engine versions in CI — Rego 1.x <code>if/in</code> vs legacy syntax must not drift between laptop and pipeline.</p>\n            </div>\n            \n            <div class=\"lesson-section\" style=\"background: rgba(139, 92, 246, 0.08); border-left: 4px solid var(--ai-purple); padding: 0.75rem 1rem; border-radius: 4px;\">\n                <strong>🎮 Try it in the Policy Lab →</strong> Toggle default-deny off and watch the property tests go red. Use the controls under the canvas to switch scenarios and watch the verdict change.\n            </div>\n        \n        ",
+  "concepts": [
+    "Regression Tests",
+    "Cedar Schema Validation",
+    "Decision-Diff Review",
+    "Deny Coverage",
+    "Pinned Engine Versions"
+  ],
+  "quiz": {
+    "id": "testing_quiz",
+    "title": "Testing and Verification Quiz",
+    "passingScore": 60,
+    "sampleSize": 5,
+    "timeLimit": 480,
+    "questions": [
+      {
+        "id": "q1",
+        "type": "multiple-choice",
+        "question": "100% rule coverage, all tests are allow-cases. What is missing?",
+        "options": [
+          {
+            "text": "Deny-coverage: failing twins + default-deny property tests",
+            "isCorrect": true
+          },
+          {
+            "text": "Nothing — coverage is coverage",
+            "isCorrect": false
+          },
+          {
+            "text": "More allow-tests",
+            "isCorrect": false
+          },
+          {
+            "text": "Faster hardware",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Allow-only suites cannot catch over-broad rules or fail-open defaults. Every rule needs its deny twin; garbage inputs must deny.",
+        "difficulty": 2,
+        "concept": "Deny Coverage"
+      },
+      {
+        "id": "q2",
+        "type": "multiple-choice",
+        "question": "What does cedar validate --schema catch before deploy?",
+        "options": [
+          {
+            "text": "Type/category errors (wrong entity types, illegal action combos)",
+            "isCorrect": true
+          },
+          {
+            "text": "Spelling errors in comments",
+            "isCorrect": false
+          },
+          {
+            "text": "Network latency",
+            "isCorrect": false
+          },
+          {
+            "text": "Whether the policy is stylistically idiomatic",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Schema validation is Cedar's write-time gate — bad policy is rejected, never deployed (Lesson 13).",
+        "difficulty": 1,
+        "concept": "Cedar Schema Validation"
+      },
+      {
+        "id": "q3",
+        "type": "multiple-choice",
+        "question": "A policy PR flips 3 production requests from deny to allow. Correct handling?",
+        "options": [
+          {
+            "text": "Decision-diff preview lists them; second approver justifies each flip before merge",
+            "isCorrect": true
+          },
+          {
+            "text": "Merge silently — flips are always fine",
+            "isCorrect": false
+          },
+          {
+            "text": "Delete the tests that noticed",
+            "isCorrect": false
+          },
+          {
+            "text": "Deploy Friday evening to get it over with",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Verdict flips are the security-relevant diff. Two-person review of flips is the change control auditors expect.",
+        "difficulty": 2,
+        "concept": "Decision-Diff Review"
+      },
+      {
+        "id": "q4",
+        "type": "multiple-choice",
+        "question": "Last month's tenant-leak incident is fixed. What makes the fix permanent?",
+        "options": [
+          {
+            "text": "A named regression test (test_analyst_denied_other_tenant) that lives forever",
+            "isCorrect": true
+          },
+          {
+            "text": "A Slack message saying it is fixed",
+            "isCorrect": false
+          },
+          {
+            "text": "Hoping nobody touches that code",
+            "isCorrect": false
+          },
+          {
+            "text": "Deleting the incident ticket",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Incidents become tests or they become repeats. Named regression tests are institutional memory that runs on every build.",
+        "difficulty": 1,
+        "concept": "Regression Tests"
+      },
+      {
+        "id": "q5",
+        "type": "multiple-choice",
+        "question": "CI uses OPA 1.x but a laptop runs 0.x and a test passes locally, fails in CI. Fix?",
+        "options": [
+          {
+            "text": "Pin the engine version everywhere (container digest / version file) so syntax and builtins match",
+            "isCorrect": true
+          },
+          {
+            "text": "Delete the failing test",
+            "isCorrect": false
+          },
+          {
+            "text": "Never test locally",
+            "isCorrect": false
+          },
+          {
+            "text": "Use two different policy languages",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Rego 1.x keywords (if/in) vs legacy syntax is version-sensitive. Pinned versions make local == CI == prod.",
+        "difficulty": 2,
+        "concept": "Pinned Engine Versions"
+      },
+      {
+        "id": "q6",
+        "type": "multiple-choice",
+        "question": "A diff shows 200 flips, all deny-to-allow for one team. Reading?",
+        "options": [
+          {
+            "text": "Over-broad new permit scoped to that team — block merge until each flip is justified",
+            "isCorrect": true
+          },
+          {
+            "text": "Normal statistical noise",
+            "isCorrect": false
+          },
+          {
+            "text": "Approve — flips mean progress",
+            "isCorrect": false
+          },
+          {
+            "text": "Delete the diff output",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Clustered flips are the signature of an over-scoped rule. Diff review exists to catch exactly this shape.",
+        "difficulty": 2,
+        "concept": "Decision-Diff Review"
+      },
+      {
+        "id": "q7",
+        "type": "multiple-choice",
+        "question": "How do you write a regression test for a fixed tenant leak?",
+        "options": [
+          {
+            "text": "Name it after the incident, use the minimal failing input, keep it permanent",
+            "isCorrect": true
+          },
+          {
+            "text": "Delete it once the fix ships",
+            "isCorrect": false
+          },
+          {
+            "text": "Test only the allow-cases",
+            "isCorrect": false
+          },
+          {
+            "text": "File it in an email thread",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Named, minimal, permanent: incidents become tests or they become repeats.",
+        "difficulty": 1,
+        "concept": "Regression Tests"
+      },
+      {
+        "id": "q8",
+        "type": "multiple-choice",
+        "question": "OPA 1.x if-keyword syntax fails on a vendored 0.x binary in one region. Prevention?",
+        "options": [
+          {
+            "text": "Digest-pinned image plus version assertion at boot plus CI matching prod",
+            "isCorrect": true
+          },
+          {
+            "text": "Avoid modern keywords everywhere",
+            "isCorrect": false
+          },
+          {
+            "text": "One divergent region is acceptable",
+            "isCorrect": false
+          },
+          {
+            "text": "Edit policy directly in production",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Version drift between regions is a split-brain fleet. Pin, assert, and test the matrix you ship.",
+        "difficulty": 3,
+        "concept": "Pinned Engine Versions"
+      }
+    ]
+  },
+  "animation": {
+    "type": "default-deny-sim",
+    "title": "Coverage vs Reality",
+    "description": "Watch property tests catch what allow-only suites miss",
+    "controls": [
+      "setDenyScenario",
+      "toggleDenyRules"
+    ]
+  }
+}

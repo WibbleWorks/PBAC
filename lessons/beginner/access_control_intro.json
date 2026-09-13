@@ -1,0 +1,244 @@
+{
+  "id": "access_control_intro",
+  "title": "Why Authorization Fails",
+  "subtitle": "Authentication vs authorization, and the cost of if-statements",
+  "level": "beginner",
+  "number": 1,
+  "estimatedTime": 35,
+  "difficulty": 1,
+  "prerequisites": [],
+  "content": "\n                        <div class=\"lesson-section\">\n                            <h3>🔐 Authentication Is Not Authorization</h3>\n                            <p><strong>Authentication (AuthN)</strong> answers <em>who are you?</em> — passwords, SSO, JWTs, API keys. <strong>Authorization (AuthZ)</strong> answers <em>what may you do?</em> — can this identity read this report, edit this tenant, see this column?</p>\n                            <p><strong>The industry failure mode:</strong> teams invest heavily in AuthN (OIDC, MFA, Keycloak) and then scatter AuthZ as <code>if user.role == \"admin\"</code> checks across every service. Those checks are untestable as a whole, unauditable, and drift between services until a breach finds the gap.</p>\n                        </div>\n\n                        <div class=\"lesson-section\">\n                            <h3>💥 Three Real Breach Shapes</h3>\n                            <ul>\n                                <li><strong>Broken object-level authorization (BOLA/IDOR):</strong> <code>GET /invoices/1234</code> returns any invoice when the id is guessed, because the handler checks login but never checks ownership. OWASP API #1 year after year.</li>\n                                <li><strong>Tenant leakage:</strong> an analyst for tenant A reads tenant B's rows because the query forgot <code>WHERE tenant_id = ?</code>. One missing predicate, full cross-customer exposure.</li>\n                                <li><strong>Fail-open defaults:</strong> an authorizer that returns ALLOW when the policy engine is unreachable, misconfigured, or the input shape is unexpected. Deny must be the default.</li>\n                            </ul>\n                        </div>\n\n                        <div class=\"lesson-section\">\n                            <h3>📜 Policy-Based Access Control in One Paragraph</h3>\n                            <p><strong>PBAC</strong> externalizes authorization decisions into versioned, testable <strong>policies</strong> evaluated by a dedicated <strong>policy decision point (PDP)</strong> at request time. Application code asks <em>may S do A on R given context C?</em> and enforces the answer — it never hard-codes the answer. Policies live in Git, go through review, run in CI, and ship like code.</p>\n                        </div>\n\n                        <div class=\"lesson-section\">\n                            <h3>🧭 What This Course Covers</h3>\n                            <ul>\n                                <li><strong>Foundations (L1):</strong> models compared, architecture, default-deny, business case</li>\n                                <li><strong>Languages (L2):</strong> OPA/Rego, Cedar, OpenFGA — hands-on, critically reviewed against official docs and real-world repos</li>\n                                <li><strong>Platforms (L3):</strong> OPA/Cedar/OpenFGA in production, plus Immuta (data) and PlainID (enterprise) scenarios</li>\n                                <li><strong>Architecture (L4):</strong> enforcement patterns, testing, RBAC-to-PBAC migration</li>\n                                <li><strong>Capstones (L5):</strong> AI-agent guardrails and two build-and-defend projects with rubrics</li>\n                            </ul>\n                        </div>\n\n                        <div class=\"lesson-section\">\n                            <h3>✅ How to Use This Course</h3>\n                            <p>Each lesson has written content, a <strong>Policy Lab</strong> visualizer on the right, and a 5-question knowledge check (60% to pass). Lessons unlock sequentially. Your progress saves in the browser automatically.</p>\n                        </div>\n                    ",
+  "concepts": [
+    "Authentication vs Authorization",
+    "BOLA/IDOR",
+    "Tenant Isolation",
+    "Fail-Closed Defaults",
+    "Policy as Code"
+  ],
+  "quiz": {
+    "id": "access_intro_quiz",
+    "title": "Why Authorization Fails Quiz",
+    "passingScore": 60,
+    "sampleSize": 5,
+    "timeLimit": 360,
+    "questions": [
+      {
+        "id": "q1",
+        "type": "multiple-choice",
+        "question": "What is the core difference between authentication and authorization?",
+        "options": [
+          {
+            "text": "Authentication proves who you are; authorization decides what you may do",
+            "isCorrect": true
+          },
+          {
+            "text": "They are the same thing with different names",
+            "isCorrect": false
+          },
+          {
+            "text": "Authorization happens before authentication",
+            "isCorrect": false
+          },
+          {
+            "text": "Authentication is for APIs, authorization is for web pages",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "AuthN establishes identity (JWT, SSO, MFA). AuthZ evaluates that identity against policy for a specific action on a specific resource. A valid login must never imply permission.",
+        "difficulty": 1,
+        "concept": "Authentication vs Authorization"
+      },
+      {
+        "id": "q2",
+        "type": "multiple-choice",
+        "question": "GET /invoices/1234 returns another customer's invoice when the id is changed to 1235. The user is logged in. What failed?",
+        "options": [
+          {
+            "text": "Object-level authorization (BOLA/IDOR) — ownership of the object was never checked",
+            "isCorrect": true
+          },
+          {
+            "text": "Authentication — the user was not logged in",
+            "isCorrect": false
+          },
+          {
+            "text": "Encryption — the invoice was not encrypted",
+            "isCorrect": false
+          },
+          {
+            "text": "Rate limiting — too many requests were allowed",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "BOLA is OWASP API #1: the handler verified login but never asked whether this subject may read that object. A PDP check on (subject, read, invoice:1235) would deny it.",
+        "difficulty": 1,
+        "concept": "BOLA/IDOR"
+      },
+      {
+        "id": "q3",
+        "type": "multiple-choice",
+        "question": "An analyst for tenant A can read tenant B's rows because a query omitted the tenant predicate. What is the structural fix?",
+        "options": [
+          {
+            "text": "Enforce tenant isolation in policy (deny unless token tenant == resource tenant), tested in CI",
+            "isCorrect": true
+          },
+          {
+            "text": "Add more database indexes",
+            "isCorrect": false
+          },
+          {
+            "text": "Require a longer password",
+            "isCorrect": false
+          },
+          {
+            "text": "Cache the query results",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Tenant isolation is an authorization invariant, not a query-writing discipline. It belongs in centrally evaluated policy with tests, so one forgotten WHERE clause cannot leak a tenant.",
+        "difficulty": 2,
+        "concept": "Tenant Isolation"
+      },
+      {
+        "id": "q4",
+        "type": "multiple-choice",
+        "question": "Your authorizer cannot reach the policy engine (timeout). What is the safe behavior?",
+        "options": [
+          {
+            "text": "Deny the request (fail closed) and alert",
+            "isCorrect": true
+          },
+          {
+            "text": "Allow the request so users are not blocked",
+            "isCorrect": false
+          },
+          {
+            "text": "Retry forever until the engine responds",
+            "isCorrect": false
+          },
+          {
+            "text": "Allow reads but deny writes",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Fail-closed is the load-bearing rule of authorization infrastructure. Fail-open turns every outage or misconfiguration into a breach. Timeouts, unknown inputs, and missing attributes must all resolve to DENY.",
+        "difficulty": 2,
+        "concept": "Fail-Closed Defaults"
+      },
+      {
+        "id": "q5",
+        "type": "multiple-choice",
+        "question": "Which statement best describes policy-based access control?",
+        "options": [
+          {
+            "text": "Authorization logic lives in versioned, testable policies evaluated by a PDP; apps enforce the decision",
+            "isCorrect": true
+          },
+          {
+            "text": "Every service hard-codes its own if-statements for speed",
+            "isCorrect": false
+          },
+          {
+            "text": "Access is granted once at login and never re-checked",
+            "isCorrect": false
+          },
+          {
+            "text": "Policies are written in emails and enforced by managers",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "PBAC = externalize the decision (PDP + policy-as-code), keep enforcement in the app (PEP). Decisions are consistent, reviewable, testable, and auditable across all services.",
+        "difficulty": 1,
+        "concept": "Policy as Code"
+      },
+      {
+        "id": "q6",
+        "type": "multiple-choice",
+        "question": "A mobile app calls GET /orders/{id} with the user's own JWT and returns other users' orders. The root-cause fix?",
+        "options": [
+          {
+            "text": "Server-side ownership check (subject vs order.owner) on every read",
+            "isCorrect": true
+          },
+          {
+            "text": "Longer, unguessable order IDs",
+            "isCorrect": false
+          },
+          {
+            "text": "Hiding the endpoint from API docs",
+            "isCorrect": false
+          },
+          {
+            "text": "Requiring re-login per request",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Unpredictable IDs are obscurity, not authorization. Only a per-request ownership decision closes BOLA.",
+        "difficulty": 2,
+        "concept": "BOLA/IDOR"
+      },
+      {
+        "id": "q7",
+        "type": "multiple-choice",
+        "question": "Your PDP client library throws on malformed responses. Where should that exception be caught?",
+        "options": [
+          {
+            "text": "At the PEP boundary — deny plus alert, never propagate into allow",
+            "isCorrect": true
+          },
+          {
+            "text": "In the UI toast notification",
+            "isCorrect": false
+          },
+          {
+            "text": "Nowhere — crash the process instead",
+            "isCorrect": false
+          },
+          {
+            "text": "In the metrics pipeline only",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Exception paths are decision paths. An unhandled throw that skips enforcement is fail-open by accident.",
+        "difficulty": 2,
+        "concept": "Fail-Closed Defaults"
+      },
+      {
+        "id": "q8",
+        "type": "multiple-choice",
+        "question": "Why do policies live in Git rather than a wiki page?",
+        "options": [
+          {
+            "text": "Review, versioning, tests, and automated deploy — the same lifecycle as code",
+            "isCorrect": true
+          },
+          {
+            "text": "Git is free file storage",
+            "isCorrect": false
+          },
+          {
+            "text": "Wikis cannot hold text",
+            "isCorrect": false
+          },
+          {
+            "text": "Auditors prefer markdown aesthetics",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Policy-as-code earns its name from the lifecycle: reviewed, tested, versioned, shipped — not the file format.",
+        "difficulty": 1,
+        "concept": "Policy as Code"
+      }
+    ]
+  },
+  "animation": {
+    "type": "policy-flow",
+    "title": "Request Lifecycle",
+    "description": "Follow a request from client through PEP, PDP, PIP to decision",
+    "controls": [
+      "flowPrev",
+      "flowNext"
+    ]
+  }
+}

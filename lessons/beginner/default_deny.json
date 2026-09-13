@@ -1,0 +1,246 @@
+{
+  "id": "default_deny",
+  "title": "Default-Deny and Testing",
+  "subtitle": "The one invariant that prevents breaches",
+  "level": "beginner",
+  "number": 4,
+  "estimatedTime": 40,
+  "difficulty": 2,
+  "prerequisites": [
+    "policy_anatomy"
+  ],
+  "content": "\n                        <div class=\"lesson-section\">\n                            <h3>🔒 Deny by Default, Permit by Exception</h3>\n                            <p>Every policy set in this course starts closed: <strong>no rule matched → DENY</strong>. In Rego: <code>default allow := false</code>. In Cedar: <em>deny unless a permit matches</em> (plus forbid overrides). In OpenFGA: <em>no relation path → deny</em>. Open by default is never a performance optimization — it is a breach waiting for an outage.</p>\n                        </div>\n\n                        <div class=\"lesson-section\">\n                            <h3>🧪 Authorization Needs Tests Like Code</h3>\n                            <ul>\n                                <li><strong>Allow-cases:</strong> each permit rule has a test with the minimal input that should pass.</li>\n                                <li><strong>Deny-cases:</strong> strangers, wrong tenants, expired MFA, private resources — each must return false.</li>\n                                <li><strong>Regression-cases:</strong> every past incident becomes a permanent test (<code>test_analyst_denied_other_tenant</code>).</li>\n                                <li><strong>Property checks:</strong> unknown roles, missing fields, and empty inputs must all deny.</li>\n                            </ul>\n                        </div>\n\n                        <div class=\"lesson-section\">\n                            <h3>📋 Reasons, Not Just Booleans</h3>\n                            <p>A bare <code>true/false</code> cannot be audited or debugged. Production PDP responses carry <strong>which policies determined the decision</strong> (Cedar determining-policies, OPA decision logs, OpenFGA tuples used, PlainID access-policy names). Denials log the reason; the simulator in this lesson's lab shows why each scenario passes or fails.</p>\n                        </div>\n\n                        <div class=\"lesson-section\">\n                            <h3>🚨 Fail-Open Smells to Memorize</h3>\n                            <ul>\n                                <li><code>failure_mode_allow: true</code> on a gateway authz filter</li>\n                                <li><code>OPA_FAIL_OPEN=true</code> in middleware env</li>\n                                <li>Catching PDP timeouts and continuing to the handler</li>\n                                <li><code>default allow := true</code> in any Rego file, ever</li>\n                            </ul>\n                        </div>\n                    ",
+  "concepts": [
+    "Default Deny",
+    "Permit by Exception",
+    "Decision Reasons",
+    "Fail-Open Smells",
+    "Regression Tests"
+  ],
+  "quiz": {
+    "id": "deny_quiz",
+    "title": "Default-Deny Quiz",
+    "passingScore": 60,
+    "sampleSize": 5,
+    "timeLimit": 360,
+    "questions": [
+      {
+        "id": "q1",
+        "type": "multiple-choice",
+        "question": "What does default-deny mean in practice?",
+        "options": [
+          {
+            "text": "No rule matched → DENY; access requires an explicit permit",
+            "isCorrect": true
+          },
+          {
+            "text": "All requests are denied permanently",
+            "isCorrect": false
+          },
+          {
+            "text": "Admins are denied first, then allowed",
+            "isCorrect": false
+          },
+          {
+            "text": "Denials are never logged",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Default-deny is a closed starting posture with explicit exceptions (permit rules), not a refusal to grant access. Rego: default allow := false.",
+        "difficulty": 1,
+        "concept": "Default Deny"
+      },
+      {
+        "id": "q2",
+        "type": "multiple-choice",
+        "question": "A Rego file contains default allow := true with narrow deny rules. What is wrong?",
+        "options": [
+          {
+            "text": "Fail-open: any input the deny rules did not anticipate is allowed",
+            "isCorrect": true
+          },
+          {
+            "text": "Nothing — this is the recommended pattern",
+            "isCorrect": false
+          },
+          {
+            "text": "It will be too slow",
+            "isCorrect": false
+          },
+          {
+            "text": "OPA cannot parse the keyword default",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Deny-lists enumerate badness; the universe of bad inputs is infinite. Default-allow with deny override only works when layered over a default-deny base with explicit broad permits — never as the base itself.",
+        "difficulty": 2,
+        "concept": "Permit by Exception"
+      },
+      {
+        "id": "q3",
+        "type": "multiple-choice",
+        "question": "Which test belongs in every authorization test-suite?",
+        "options": [
+          {
+            "text": "Cross-tenant read must deny (analyst of A reading B's object)",
+            "isCorrect": true
+          },
+          {
+            "text": "Admin login page renders in under 50ms",
+            "isCorrect": false
+          },
+          {
+            "text": "Passwords contain a special character",
+            "isCorrect": false
+          },
+          {
+            "text": "The homepage has no broken images",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Tenant isolation is the invariant most likely to regress silently. Pin it as a named, permanent regression test — every past incident becomes a test that runs on every build (Lesson 20).",
+        "difficulty": 2,
+        "concept": "Regression Tests"
+      },
+      {
+        "id": "q4",
+        "type": "multiple-choice",
+        "question": "Why should PDP responses include determining policies / reasons?",
+        "options": [
+          {
+            "text": "Auditability and debugging: know which rule allowed/denied and why",
+            "isCorrect": true
+          },
+          {
+            "text": "To make responses larger and slower",
+            "isCorrect": false
+          },
+          {
+            "text": "Because JSON requires a reason field",
+            "isCorrect": false
+          },
+          {
+            "text": "Only to satisfy frontend developers",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "A bare boolean cannot answer 'why was this denied?' at 3am or 'which rule granted this?' in an audit. Cedar, OPA decision logs, and PlainID all surface determining policy.",
+        "difficulty": 1,
+        "concept": "Decision Reasons"
+      },
+      {
+        "id": "q5",
+        "type": "multiple-choice",
+        "question": "During a code review you see: except TimeoutError: return ALLOW. What do you do?",
+        "options": [
+          {
+            "text": "Block it — PDP unreachable must fail closed (deny + alert), never allow",
+            "isCorrect": true
+          },
+          {
+            "text": "Approve — availability matters more than authorization",
+            "isCorrect": false
+          },
+          {
+            "text": "Approve if it only affects reads",
+            "isCorrect": false
+          },
+          {
+            "text": "Ignore — timeouts never happen in production",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Fail-open on timeout converts every network blip into unauthorized access. The safe pattern: deny, emit a metric/alert, and let operators — not attackers — decide.",
+        "difficulty": 2,
+        "concept": "Fail-Open Smells"
+      },
+      {
+        "id": "q6",
+        "type": "multiple-choice",
+        "question": "A denial arrives with no reason attached. What is the operational cost?",
+        "options": [
+          {
+            "text": "On-call cannot distinguish attack from misconfiguration; audits cannot attribute the decision",
+            "isCorrect": true
+          },
+          {
+            "text": "None — a 403 is self-explanatory",
+            "isCorrect": false
+          },
+          {
+            "text": "Slightly larger log volume",
+            "isCorrect": false
+          },
+          {
+            "text": "Marginally slower responses",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Reasons turn denials into diagnosable, auditable events. Bare booleans are operational darkness.",
+        "difficulty": 2,
+        "concept": "Decision Reasons"
+      },
+      {
+        "id": "q7",
+        "type": "multiple-choice",
+        "question": "A partner integration needs one new endpoint. Safest change?",
+        "options": [
+          {
+            "text": "Add one narrow permit rule plus its deny-test; the default stays deny",
+            "isCorrect": true
+          },
+          {
+            "text": "Default-allow during onboarding, tighten later",
+            "isCorrect": false
+          },
+          {
+            "text": "Share an admin token for speed",
+            "isCorrect": false
+          },
+          {
+            "text": "Disable authorization for their IP range",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Permit-by-exception scales one rule at a time. Temporary openness has a perfect record of becoming permanent.",
+        "difficulty": 2,
+        "concept": "Permit by Exception"
+      },
+      {
+        "id": "q8",
+        "type": "multiple-choice",
+        "question": "A brand-new resource type has no rules yet. What happens on first access?",
+        "options": [
+          {
+            "text": "Deny — unmatched means denied until a permit is written and reviewed",
+            "isCorrect": true
+          },
+          {
+            "text": "Allow until someone complains",
+            "isCorrect": false
+          },
+          {
+            "text": "Deny forever, even after rules are added",
+            "isCorrect": false
+          },
+          {
+            "text": "The PDP crashes on unknown types",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Default-deny covers the unknown-unknowns: new resources are closed on arrival, opened deliberately.",
+        "difficulty": 1,
+        "concept": "Default Deny"
+      }
+    ]
+  },
+  "animation": {
+    "type": "default-deny-sim",
+    "title": "Default-Deny Simulator",
+    "description": "Run scenarios with default-deny on and off; watch unmatched requests",
+    "controls": [
+      "setDenyScenario",
+      "toggleDenyRules"
+    ]
+  }
+}

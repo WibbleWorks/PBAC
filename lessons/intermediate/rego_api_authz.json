@@ -1,0 +1,245 @@
+{
+  "id": "rego_api_authz",
+  "title": "Rego for API Authorization",
+  "subtitle": "JWT claims, team scoping, tenant isolation",
+  "level": "intermediate",
+  "number": 7,
+  "estimatedTime": 90,
+  "difficulty": 3,
+  "prerequisites": [
+    "rego_foundations"
+  ],
+  "content": "\n            <div class=\"lesson-section\">\n                <h3>👥 Team-Scoped Access (Reviewed Pattern)</h3>\n                <p>The most-copied real-world Rego shape (Keycloak+OPA demo repos): members of a team get read+write on <em>only that team's</em> objects, derived from the URL, plus role-wide read and full-admin grants. Critically reviewed: the <code>concat([\"Team\", id])</code> derivation ties the URL to the group claim, closing IDOR by construction.</p>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-3\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">Team scoping + role grants (Rego 1.x if-syntax)</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-3')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-rego\"># Last verified: 2026-09 vs mouton0815/authorization-with-OPA demo-rules.rego\npackage demo\n\ndefault allow := false\n\n# Members of a team have read+write on ONLY that team's data\nallow if {\n    input.method in {\"GET\", \"PUT\"}\n    teamId := trim_prefix(input.path, \"/teams/\")\n    teamName := concat(\"\", [\"Team\", teamId])\n    teamName in input.groups\n}\n\n# Users with \"api-read\" rights can read all endpoints\nallow if {\n    input.method == \"GET\"\n    \"api-read\" in input.roles\n}\n\n# Users with \"api-full\" rights have full access\nallow if {\n    \"api-full\" in input.roles\n}</code></pre>\n                <div id=\"pbac-cb-3\" class=\"code-source\" style=\"display:none;\"># Last verified: 2026-09 vs mouton0815/authorization-with-OPA demo-rules.rego\npackage demo\n\ndefault allow := false\n\n# Members of a team have read+write on ONLY that team's data\nallow if {\n    input.method in {\"GET\", \"PUT\"}\n    teamId := trim_prefix(input.path, \"/teams/\")\n    teamName := concat(\"\", [\"Team\", teamId])\n    teamName in input.groups\n}\n\n# Users with \"api-read\" rights can read all endpoints\nallow if {\n    input.method == \"GET\"\n    \"api-read\" in input.roles\n}\n\n# Users with \"api-full\" rights have full access\nallow if {\n    \"api-full\" in input.roles\n}</div>\n            </div>\n        \n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>🏢 Tenant Isolation at the Gateway (Reviewed Pattern)</h3>\n                <p>The Envoy+OPA payments-gateway pattern separates duties: Envoy validates the JWT (issuer, audience, expiry) and forwards claims; OPA authorizes. Admins pass everywhere; analysts only <code>GET</code> inside their own tenant, compared case-insensitively against the request header.</p>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-4\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">Tenant isolation: JWT claim vs request header</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-4')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-rego\"># Last verified: 2026-09 vs Envoy+OPA payments_authz (justinpolidori.com)\npackage envoy.authz\n\ndefault allow := false\n\n# Claims arrive via input.jwt_claims, populated by Envoy's jwt_authn\n# filter AFTER RS256/exp/aud verification. OPA never verifies\n# signatures itself — trusting unverified claims is a critical finding.\nverified_claims := input.jwt_claims\n\n# Admin: everything\nallow if {\n    verified_claims.role == \"admin\"\n}\n\n# Analyst: GET /payments/* only within own tenant\nallow if {\n    verified_claims.role == \"analyst\"\n    input.attributes.request.http.method == \"GET\"\n    input.parsed_path[0] == \"payments\"\n    lower(verified_claims.tenant) == lower(input.attributes.request.http.headers[\"x-tenant\"])\n}\n\n# Debug/audit helper: name the cause when nothing matches\ndeny_reason contains msg if {\n    not allow\n    not verified_claims.role\n    msg := \"denied: no verified JWT claims in input (authN did not run?)\"\n}</code></pre>\n                <div id=\"pbac-cb-4\" class=\"code-source\" style=\"display:none;\"># Last verified: 2026-09 vs Envoy+OPA payments_authz (justinpolidori.com)\npackage envoy.authz\n\ndefault allow := false\n\n# Claims arrive via input.jwt_claims, populated by Envoy's jwt_authn\n# filter AFTER RS256/exp/aud verification. OPA never verifies\n# signatures itself — trusting unverified claims is a critical finding.\nverified_claims := input.jwt_claims\n\n# Admin: everything\nallow if {\n    verified_claims.role == \"admin\"\n}\n\n# Analyst: GET /payments/* only within own tenant\nallow if {\n    verified_claims.role == \"analyst\"\n    input.attributes.request.http.method == \"GET\"\n    input.parsed_path[0] == \"payments\"\n    lower(verified_claims.tenant) == lower(input.attributes.request.http.headers[\"x-tenant\"])\n}\n\n# Debug/audit helper: name the cause when nothing matches\ndeny_reason contains msg if {\n    not allow\n    not verified_claims.role\n    msg := \"denied: no verified JWT claims in input (authN did not run?)\"\n}</div>\n            </div>\n        \n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>🔍 Critical Review Notes (Do Not Skip)</h3>\n                <ul>\n                    <li><strong>OPA does not verify JWT signatures by itself</strong> — the Hoop.dev JWT+OPA guide and the Envoy pattern agree: fetch JWKS, pin RS256 (never <code>none</code>), check <code>exp/nbf</code> <em>before</em> claims are trusted. Our gateway example delegates this to Envoy.</li>\n                    <li><strong><code>failure_mode_allow: false</code></strong> on the ext_authz filter: if OPA is down or slow (&gt;200ms), deny. The reviewed config sets this explicitly.</li>\n                    <li><strong>Every reviewed repo pins the cross-tenant deny-test</strong> (<code>test_analyst_denied_other_tenant</code>). Copy that test into your suite verbatim, adapted to your paths.</li>\n                </ul>\n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>📨 The Input Contract (Keycloak-middleware shape)</h3>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-5\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">Canonical authZ input: user, action (resource:verb), resource</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-5')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-json\">{ \"input\": {\n    \"user\": { \"user_id\": \"u-2\", \"roles\": [\"analyst\"],\n              \"tenant_id\": \"t1\", \"auth_source\": \"keycloak\" },\n    \"action\": \"payments:read\",\n    \"resource\": { \"type\": \"payment\", \"id\": \"123\", \"tenant_id\": \"t1\" } } }</code></pre>\n                <div id=\"pbac-cb-5\" class=\"code-source\" style=\"display:none;\">{ \"input\": {\n    \"user\": { \"user_id\": \"u-2\", \"roles\": [\"analyst\"],\n              \"tenant_id\": \"t1\", \"auth_source\": \"keycloak\" },\n    \"action\": \"payments:read\",\n    \"resource\": { \"type\": \"payment\", \"id\": \"123\", \"tenant_id\": \"t1\" } } }</div>\n            </div>\n        \n            </div>\n            \n            <div class=\"lesson-section\" style=\"background: rgba(139, 92, 246, 0.08); border-left: 4px solid var(--ai-purple); padding: 0.75rem 1rem; border-radius: 4px;\">\n                <strong>🎮 Try it in the Policy Lab →</strong> Run the analyst/admin scenarios and watch tenant mismatch deny. Use the controls under the canvas to switch scenarios and watch the verdict change.\n            </div>\n        \n        ",
+  "concepts": [
+    "Team Scoping Derivation",
+    "JWT Verification Boundary",
+    "Fail-Closed Gateway",
+    "AuthZ Input Contract",
+    "Cross-Tenant Deny Tests"
+  ],
+  "quiz": {
+    "id": "rego_api_quiz",
+    "title": "Rego API Authorization Quiz",
+    "passingScore": 60,
+    "sampleSize": 5,
+    "timeLimit": 480,
+    "questions": [
+      {
+        "id": "q1",
+        "type": "multiple-choice",
+        "question": "PUT /teams/123 from bob (groups: [Team123]) — which rule allows it in the team pattern?",
+        "options": [
+          {
+            "text": "Team-membership rule: Team+123 derived from URL is in bob's groups",
+            "isCorrect": true
+          },
+          {
+            "text": "The api-read rule",
+            "isCorrect": false
+          },
+          {
+            "text": "The public-endpoint rule",
+            "isCorrect": false
+          },
+          {
+            "text": "No rule — it denies",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "trim_prefix + concat derive Team123 from the path; membership grants GET/PUT on that team only. Eve (Team999) is denied by the same rule.",
+        "difficulty": 2,
+        "concept": "Team Scoping Derivation"
+      },
+      {
+        "id": "q2",
+        "type": "multiple-choice",
+        "question": "Analyst (tenant t1) GETs /payments/123 with x-tenant: t2. Verdict in the gateway pattern?",
+        "options": [
+          {
+            "text": "DENY — claim tenant must equal request tenant",
+            "isCorrect": true
+          },
+          {
+            "text": "ALLOW — analysts read all tenants",
+            "isCorrect": false
+          },
+          {
+            "text": "ALLOW — GET is always safe",
+            "isCorrect": false
+          },
+          {
+            "text": "TIMEOUT — the policy cannot decide",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "The reviewed gateway pins exactly this deny-test. Tenant equality is the load-bearing comparison — keep it as a named regression test forever.",
+        "difficulty": 2,
+        "concept": "Cross-Tenant Deny Tests"
+      },
+      {
+        "id": "q3",
+        "type": "multiple-choice",
+        "question": "Who verifies the JWT signature in the Envoy+OPA pattern?",
+        "options": [
+          {
+            "text": "Envoy (jwt_authn filter: issuer, audience, expiry) before OPA ever sees claims",
+            "isCorrect": true
+          },
+          {
+            "text": "OPA verifies signatures natively with no keys",
+            "isCorrect": false
+          },
+          {
+            "text": "The browser verifies its own token",
+            "isCorrect": false
+          },
+          {
+            "text": "Nobody — signatures are optional",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Authenticate first (Envoy), authorize second (OPA). OPA evaluates claims it is handed; trusting unverified claims is a critical finding.",
+        "difficulty": 2,
+        "concept": "JWT Verification Boundary"
+      },
+      {
+        "id": "q4",
+        "type": "multiple-choice",
+        "question": "OPA is unreachable (gateway timeout 200ms). Correct behavior?",
+        "options": [
+          {
+            "text": "Deny (failure_mode_allow: false) and alert",
+            "isCorrect": true
+          },
+          {
+            "text": "Allow to preserve availability",
+            "isCorrect": false
+          },
+          {
+            "text": "Retry for 30 seconds holding the connection",
+            "isCorrect": false
+          },
+          {
+            "text": "Allow GETs, deny POSTs",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "The reviewed Envoy config fails closed explicitly. Fail-open on PDP outage is a breach-shaped setting.",
+        "difficulty": 1,
+        "concept": "Fail-Closed Gateway"
+      },
+      {
+        "id": "q5",
+        "type": "multiple-choice",
+        "question": "Why use resource:action strings (payments:read) in the input contract?",
+        "options": [
+          {
+            "text": "One stable vocabulary: the PEP maps routes once, the PDP rules stay route-free and testable",
+            "isCorrect": true
+          },
+          {
+            "text": "They run faster than plain strings",
+            "isCorrect": false
+          },
+          {
+            "text": "OPA requires the colon character",
+            "isCorrect": false
+          },
+          {
+            "text": "They encrypt the permission",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Route→permission mapping lives in middleware (Keycloak-middleware RULES table); policy reasons about permissions, so URL refactors never silently change access.",
+        "difficulty": 2,
+        "concept": "AuthZ Input Contract"
+      },
+      {
+        "id": "q6",
+        "type": "multiple-choice",
+        "question": "Teams rename groups from Team123 to Squad123. What breaks in the trim_prefix/concat pattern?",
+        "options": [
+          {
+            "text": "Derivation mismatches claims until code or claims update — derivation is a contract, version it",
+            "isCorrect": true
+          },
+          {
+            "text": "Nothing — Rego auto-detects renames",
+            "isCorrect": false
+          },
+          {
+            "text": "Only the UI labels",
+            "isCorrect": false
+          },
+          {
+            "text": "JWT signatures invalidate",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "String derivation bakes naming into policy. Renames are migrations: update claims and code together, with tests.",
+        "difficulty": 3,
+        "concept": "Team Scoping Derivation"
+      },
+      {
+        "id": "q7",
+        "type": "multiple-choice",
+        "question": "A service passes the raw Authorization header to OPA as input and enforces allow. What's missing?",
+        "options": [
+          {
+            "text": "Signature/expiry/audience verification before OPA — OPA evaluates claims, never authenticates them",
+            "isCorrect": true
+          },
+          {
+            "text": "Base64 decoding of the token",
+            "isCorrect": false
+          },
+          {
+            "text": "A bigger server",
+            "isCorrect": false
+          },
+          {
+            "text": "More verbose logs",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "The JWT boundary: Envoy/sidecar verifies, OPA authorizes. Enforcing on unverified claims is authentication theater.",
+        "difficulty": 2,
+        "concept": "JWT Verification Boundary"
+      },
+      {
+        "id": "q8",
+        "type": "multiple-choice",
+        "question": "Two PEPs send tenancy as tenant_id vs tenant. Consequence?",
+        "options": [
+          {
+            "text": "One PEP's rules silently miss — standardize the contract and test both shapes deny safely",
+            "isCorrect": true
+          },
+          {
+            "text": "OPA merges the spellings automatically",
+            "isCorrect": false
+          },
+          {
+            "text": "Faster evaluation",
+            "isCorrect": false
+          },
+          {
+            "text": "Nothing — field names are cosmetic",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Contract drift is silent rule-miss. One vocabulary, schema-checked, with property tests for unknown fields.",
+        "difficulty": 2,
+        "concept": "AuthZ Input Contract"
+      }
+    ]
+  },
+  "animation": {
+    "type": "rego-playground",
+    "title": "API AuthZ Simulator",
+    "description": "Admin, team-member, and stranger requests against the team pattern",
+    "controls": [
+      "setRegoScenario"
+    ]
+  }
+}

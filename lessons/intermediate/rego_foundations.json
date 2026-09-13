@@ -1,0 +1,245 @@
+{
+  "id": "rego_foundations",
+  "title": "Rego Foundations",
+  "subtitle": "Packages, default-deny, allow-if, input vs data",
+  "level": "intermediate",
+  "number": 6,
+  "estimatedTime": 60,
+  "difficulty": 2,
+  "prerequisites": [
+    "pbac_business_case"
+  ],
+  "content": "\n            <div class=\"lesson-section\">\n                <h3>📦 Package, Input, Data: The Three Namespaces</h3>\n                <p>A Rego policy declares a <strong>package</strong> (its API path: <code>package demo</code> → <code>/v1/data/demo</code>), reads the per-request <strong>input</strong> document, and reads slowly-changing <strong>data</strong> (roles, team memberships) loaded separately. Rules define <code>allow</code>; anything undefined is denied when you set the default.</p>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-1\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">Rego 1.x: canonical sidecar shape (default-deny + three allow rules)</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-1')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-rego\"># Last verified: 2026-09 against OPA docs + rest-rego sidecar pattern\npackage policies\n\n# Deny by default (fail-closed). NEVER default allow := true.\ndefault allow := false\n\n# Allow listed applications (JWT claim from the sidecar input)\nallow if {\n    input.jwt.appid == \"11112222-3333-4444-5555-666677778888\"\n}\n\n# Allow based on roles\nallow if {\n    \"admin\" in input.jwt.roles\n}\n\n# Allow public endpoints without auth context.\n# Narrow by design: GET only, exact allowlisted paths. A bare\n# path[0] == \"public\" check would also allow PUT/DELETE under /public/*\n# (including future non-idempotent endpoints) — every carve-out gets\n# its own deny-test (Lesson 20).\nallow if {\n    input.request.method == \"GET\"\n    input.request.path in [[\"public\", \"health\"], [\"public\", \"version\"]]\n}</code></pre>\n                <div id=\"pbac-cb-1\" class=\"code-source\" style=\"display:none;\"># Last verified: 2026-09 against OPA docs + rest-rego sidecar pattern\npackage policies\n\n# Deny by default (fail-closed). NEVER default allow := true.\ndefault allow := false\n\n# Allow listed applications (JWT claim from the sidecar input)\nallow if {\n    input.jwt.appid == \"11112222-3333-4444-5555-666677778888\"\n}\n\n# Allow based on roles\nallow if {\n    \"admin\" in input.jwt.roles\n}\n\n# Allow public endpoints without auth context.\n# Narrow by design: GET only, exact allowlisted paths. A bare\n# path[0] == \"public\" check would also allow PUT/DELETE under /public/*\n# (including future non-idempotent endpoints) — every carve-out gets\n# its own deny-test (Lesson 20).\nallow if {\n    input.request.method == \"GET\"\n    input.request.path in [[\"public\", \"health\"], [\"public\", \"version\"]]\n}</div>\n            </div>\n        \n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>🔑 Critical Review: What the Docs and Repos Agree On</h3>\n                <ul>\n                    <li><strong>OPA official docs:</strong> <code>default allow := false</code> is the documented deny-by-default idiom; without it a missing field yields <em>undefined</em>, which most integrations treat as deny — but explicit false is auditable and testable.</li>\n                    <li><strong>rest-rego (GitHub):</strong> production sidecar uses exactly this shape — package policies, <code>input.jwt.*</code> claims, public-path carve-out, hot reload, <code>&lt;5ms</code> overhead. Our example mirrors its <code>policies/request.rego</code>.</li>\n                    <li><strong>Rego 1.x note:</strong> modern syntax is <code>allow if { ... }</code> (no <code>= true</code> needed). Older <code>allow { ... }</code> still parses but the <code>if</code> keyword is current.</li>\n                </ul>\n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>🧪 Evaluate Locally (No Server)</h3>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-2\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">OPA eval: the unit-test loop for policy</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-2')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-bash\"># Score one decision file against policy, like CI does:\nopa eval -i input.json -d request.rego 'data.policies.allow'\n\n# NOTE the shape difference: the REST decision API wraps the runtime\n# request under an \"input\" key ({\"input\": {...}}), but 'opa eval -i'\n# loads the file AS the input document itself — no wrapper. Wrapping\n# here would make rules see input.input.* and deny everything in CI\n# while the playground (which wraps) still allows.\n{ \"jwt\": { \"appid\": \"11112222-3333-4444-5555-666677778888\",\n           \"roles\": [\"viewer\"] },\n  \"request\": { \"method\": \"GET\", \"path\": [\"public\", \"health\"] } }\n# expect: { \"result\": [{ \"expressions\": [{ \"value\": true }] }] }</code></pre>\n                <div id=\"pbac-cb-2\" class=\"code-source\" style=\"display:none;\"># Score one decision file against policy, like CI does:\nopa eval -i input.json -d request.rego 'data.policies.allow'\n\n# NOTE the shape difference: the REST decision API wraps the runtime\n# request under an \"input\" key ({\"input\": {...}}), but 'opa eval -i'\n# loads the file AS the input document itself — no wrapper. Wrapping\n# here would make rules see input.input.* and deny everything in CI\n# while the playground (which wraps) still allows.\n{ \"jwt\": { \"appid\": \"11112222-3333-4444-5555-666677778888\",\n           \"roles\": [\"viewer\"] },\n  \"request\": { \"method\": \"GET\", \"path\": [\"public\", \"health\"] } }\n# expect: { \"result\": [{ \"expressions\": [{ \"value\": true }] }] }</div>\n            </div>\n        \n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>⚠️ Beginner Traps</h3>\n                <ul>\n                    <li><strong>Undefined ≠ false:</strong> without a default, a typo'd field name silently denies. Good for security, miserable for debugging — add <code>deny_reason</code> helpers (Lesson 11).</li>\n                    <li><strong><code>in</code> needs Rego 1.x / future.keywords import on old OPA:</strong> pin your OPA version in CI (Lesson 20).</li>\n                    <li><strong>Input shape is a contract:</strong> document it; the PEP and the policy must agree, or rules silently miss.</li>\n                </ul>\n            </div>\n            \n            <div class=\"lesson-section\" style=\"background: rgba(139, 92, 246, 0.08); border-left: 4px solid var(--ai-purple); padding: 0.75rem 1rem; border-radius: 4px;\">\n                <strong>🎮 Try it in the Policy Lab →</strong> Pick the three Rego scenarios and confirm which allow-rule (if any) fires. Use the controls under the canvas to switch scenarios and watch the verdict change.\n            </div>\n        \n        ",
+  "concepts": [
+    "Rego Package",
+    "Input vs Data",
+    "Default Deny in Rego",
+    "Allow-if Rules",
+    "OPA Eval"
+  ],
+  "quiz": {
+    "id": "rego_found_quiz",
+    "title": "Rego Foundations Quiz",
+    "passingScore": 60,
+    "sampleSize": 5,
+    "timeLimit": 420,
+    "questions": [
+      {
+        "id": "q1",
+        "type": "multiple-choice",
+        "question": "What does default allow := false do in a Rego policy?",
+        "options": [
+          {
+            "text": "Makes unmatched requests evaluate to false (deny) instead of undefined",
+            "isCorrect": true
+          },
+          {
+            "text": "Blocks all requests permanently",
+            "isCorrect": false
+          },
+          {
+            "text": "Speeds up policy evaluation",
+            "isCorrect": false
+          },
+          {
+            "text": "Encrypts the input document",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "OPA docs prescribe default for deny-by-default: explicit false is auditable and testable, vs undefined which integrations merely coerce to deny.",
+        "difficulty": 1,
+        "concept": "Default Deny in Rego"
+      },
+      {
+        "id": "q2",
+        "type": "multiple-choice",
+        "question": "package policies in request.rego maps to which OPA API path?",
+        "options": [
+          {
+            "text": "/v1/data/policies (dots become slashes)",
+            "isCorrect": true
+          },
+          {
+            "text": "/v1/policies/request.rego",
+            "isCorrect": false
+          },
+          {
+            "text": "/policies/request",
+            "isCorrect": false
+          },
+          {
+            "text": "There is no mapping; packages are comments",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "OPA converts the package path to the data API path — the convention the REST-demo repos rely on when POSTing decisions.",
+        "difficulty": 1,
+        "concept": "Rego Package"
+      },
+      {
+        "id": "q3",
+        "type": "multiple-choice",
+        "question": "Where do per-request JWT claims belong, vs role tables?",
+        "options": [
+          {
+            "text": "Claims in input (per request); role tables in data (loaded separately, updated via API)",
+            "isCorrect": true
+          },
+          {
+            "text": "Both hard-coded in the Rego file",
+            "isCorrect": false
+          },
+          {
+            "text": "Both in environment variables",
+            "isCorrect": false
+          },
+          {
+            "text": "Claims in data, role tables in input",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "input = dynamic per-request; data = slowly-changing context injected via /v1/data PUT/PATCH. Mixing them up breaks caching and hot updates.",
+        "difficulty": 2,
+        "concept": "Input vs Data"
+      },
+      {
+        "id": "q4",
+        "type": "multiple-choice",
+        "question": "A request from an unknown appid to /private/report gets allow=true. First suspect?",
+        "options": [
+          {
+            "text": "A fail-open default (default allow := true) or an over-broad allow rule",
+            "isCorrect": true
+          },
+          {
+            "text": "The JWT signature algorithm",
+            "isCorrect": false
+          },
+          {
+            "text": "The JWT expiry timestamp (an authN fact, not the authZ decision)",
+            "isCorrect": false
+          },
+          {
+            "text": "The number of allow rules in the file (more rules do not mean safer)",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Unexpected allows trace to the default or to a rule matching more than intended (e.g. path[0] checks without method checks). Deny-tests catch both.",
+        "difficulty": 2,
+        "concept": "Allow-if Rules"
+      },
+      {
+        "id": "q5",
+        "type": "multiple-choice",
+        "question": "How do you unit-test a Rego rule without running a server?",
+        "options": [
+          {
+            "text": "opa eval -i input.json -d policy.rego 'data.<pkg>.allow'",
+            "isCorrect": true
+          },
+          {
+            "text": "You cannot; a server is mandatory",
+            "isCorrect": false
+          },
+          {
+            "text": "By opening the file in a browser",
+            "isCorrect": false
+          },
+          {
+            "text": "By emailing it to the OPA team",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "opa eval is the documented fast loop and the basis of opa test suites in CI (Lesson 20).",
+        "difficulty": 1,
+        "concept": "OPA Eval"
+      },
+      {
+        "id": "q6",
+        "type": "multiple-choice",
+        "question": "Two teams deploy packages both named acme.payments. What breaks?",
+        "options": [
+          {
+            "text": "Bundle collision — identical data-API paths; namespace packages per team/service",
+            "isCorrect": true
+          },
+          {
+            "text": "Nothing — OPA merges same-named packages safely",
+            "isCorrect": false
+          },
+          {
+            "text": "JWTs stop verifying cluster-wide",
+            "isCorrect": false
+          },
+          {
+            "text": "The Policy Lab canvas breaks",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Package names are API paths. Collisions silently merge or shadow rules — namespace like code.",
+        "difficulty": 1,
+        "concept": "Rego Package"
+      },
+      {
+        "id": "q7",
+        "type": "multiple-choice",
+        "question": "Group membership changes must take effect within a minute, with no redeploy. Where does membership live?",
+        "options": [
+          {
+            "text": "In data (PUT/PATCH at runtime); policy reads it, bundle untouched",
+            "isCorrect": true
+          },
+          {
+            "text": "Hard-coded in the Rego file",
+            "isCorrect": false
+          },
+          {
+            "text": "Compiled into the OPA binary",
+            "isCorrect": false
+          },
+          {
+            "text": "In the quiz file",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Input/data separation exists for exactly this: fast-moving facts ride in data, slow-moving logic in versioned policy.",
+        "difficulty": 2,
+        "concept": "Input vs Data"
+      },
+      {
+        "id": "q8",
+        "type": "multiple-choice",
+        "question": "opa eval returns undefined for data.policies.allow on a request you expect allowed. First check?",
+        "options": [
+          {
+            "text": "No rule body matched the input (or default missing) — print the input, diff against rule conditions",
+            "isCorrect": true
+          },
+          {
+            "text": "Reinstall OPA",
+            "isCorrect": false
+          },
+          {
+            "text": "Increase the timeout",
+            "isCorrect": false
+          },
+          {
+            "text": "Add more allow rules blindly",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Undefined means unmatched, not broken. Debugging starts with the input document, not the engine.",
+        "difficulty": 2,
+        "concept": "OPA Eval"
+      }
+    ]
+  },
+  "animation": {
+    "type": "rego-playground",
+    "title": "Rego Rule Simulator",
+    "description": "Three requests against team/admin rules; see which rule fires",
+    "controls": [
+      "setRegoScenario"
+    ]
+  }
+}

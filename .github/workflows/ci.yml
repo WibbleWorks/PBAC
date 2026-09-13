@@ -1,0 +1,101 @@
+name: CI
+
+# PBAC course quality gates (mirrors the GenAI course pipeline):
+#   - syntax check on all JS source
+#   - version-pinning linter on pip-install lines
+#   - schema validation of every lesson
+#   - smoke test (node-level + headless browser when Playwright is present)
+#   - accessibility audit (axe-core)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  syntax:
+    name: JS syntax check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: node --check on all source
+        run: |
+          set -e
+          for f in pbac-animations.js quiz-system.js course-data.js practical-examples.js main.js; do
+            node --check "$f" && echo "OK: $f"
+          done
+
+  version-pin-lint:
+    name: pip-install version pinning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: lint
+        run: node scripts/lint-version-pinning.js
+
+  schema-validate:
+    name: Lesson schema validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: validate
+        run: node scripts/validate-lessons.mjs
+      - name: extraction determinism (no hand-edited JSON)
+        run: |
+          node scripts/extract-lessons.mjs
+          git diff --exit-code -- lessons/ || (echo "lessons/ JSON drifted from JS source - re-run extract-lessons.mjs and commit" && exit 1)
+
+  concept-coverage:
+    name: Concept coverage (no untested claims, no mistags)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: coverage
+        run: node scripts/check-concept-coverage.mjs
+
+  smoke:
+    name: Browser smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Playwright + chromium
+        run: npx -y playwright@1.47 install --with-deps chromium
+      - name: Serve + smoke test
+        run: |
+          python3 -m http.server 8765 >/tmp/serve.log 2>&1 &
+          sleep 1
+          node tests/smoke.mjs
+
+  a11y:
+    name: Accessibility audit (axe-core)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Playwright + axe-core + chromium
+        run: |
+          npm install --no-save @axe-core/playwright@4.10 playwright@1.47
+          npx playwright install --with-deps chromium
+      - name: Serve + a11y audit
+        run: |
+          python3 -m http.server 8765 >/tmp/serve.log 2>&1 &
+          sleep 1
+          node tests/a11y.mjs

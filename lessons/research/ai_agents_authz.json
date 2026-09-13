@@ -1,0 +1,246 @@
+{
+  "id": "ai_agents_authz",
+  "title": "Authorizing AI Agents",
+  "subtitle": "Guardrails at prompt, retrieval, and response",
+  "level": "research",
+  "number": 22,
+  "estimatedTime": 75,
+  "difficulty": 4,
+  "prerequisites": [
+    "migration_rbac_pbac"
+  ],
+  "content": "\n            <div class=\"lesson-section\">\n                <h3>🤖 Sara's Three Gates (Verified Pattern)</h3>\n                <p>The reviewed PlainID LangChain pattern governs Sara (Tier-1 analyst, Germany) with <strong>three enforcement gates</strong>, each backed by the same policy plane:</p>\n                <ul>\n                    <li><strong>Gate 1 — prompt categorization:</strong> her query <em>product support + internal security</em> is classified; <em>internal_security</em> is outside her allowed categories → denied before any retrieval.</li>\n                    <li><strong>Gate 2 — policy-aware retrieval:</strong> the retriever applies PDP filters (region <code>eu-central</code>) so US documents never enter context.</li>\n                    <li><strong>Gate 3 — response anonymization:</strong> reporter names (PII asset type) are masked in output per her policy.</li>\n                </ul>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-26\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">Three gates: categorize, filter retrieval, anonymize response</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-26')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-python\"># Gate 1: categorize BEFORE processing (reviewed LangChain pattern)\ncategory = categorizer.invoke(user_query)   # 'internal_security' -&gt; DENY\n# \"You're not authorized to ask about these topics.\"\n\n# Gate 2: retrieval already filtered by PDP (region eu-central only)\nfiltered_docs = plainid_retriever.invoke(user_query)\n\n# Gate 3: PII masked on the way out (reporter names)\nresult = plainid_anonymizer.invoke(user_query)</code></pre>\n                <div id=\"pbac-cb-26\" class=\"code-source\" style=\"display:none;\"># Gate 1: categorize BEFORE processing (reviewed LangChain pattern)\ncategory = categorizer.invoke(user_query)   # 'internal_security' -&gt; DENY\n# \"You're not authorized to ask about these topics.\"\n\n# Gate 2: retrieval already filtered by PDP (region eu-central only)\nfiltered_docs = plainid_retriever.invoke(user_query)\n\n# Gate 3: PII masked on the way out (reporter names)\nresult = plainid_anonymizer.invoke(user_query)</div>\n            </div>\n        \n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>🔍 Critical Review Notes</h3>\n                <ul>\n                    <li><strong>Gate order is load-bearing:</strong> categorizing after retrieval leaks unauthorized content into context (and logs). Deny early.</li>\n                    <li><strong>Retrieval filtering ≠ output filtering:</strong> region-gating decides <em>which docs</em>; anonymization decides <em>which fields</em>. Both gates stay; neither subsumes the other.</li>\n                    <li><strong>Agent identity is a first-class subject:</strong> multi-identity evaluation (human + agent + app, AND semantics) means the <em>agent's</em> clearance gates too — a cleared human driving an uncleared agent still denies.</li>\n                    <li><strong>MCP/tool calls are actions:</strong> every tool invocation is an (agent, action, resource) triple through the PDP — tools are the new API endpoints.</li>\n                </ul>\n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>⛔ Enforcement Limits (Read Before Trusting the Gates)</h3>\n                <ul>\n                    <li><strong>Gate 1 is probabilistic:</strong> the categorizer is an LLM classifier — paraphrase and prompt injection bypass it. Require allowlist categories, an adversarial test set, and human approval for high-risk tools. (Per docs, the categorizer also supports a single identity per request — do not assume multi-identity framing everywhere.)</li>\n                    <li><strong>Blocked answers still leak:</strong> retrieved-then-blocked content touches context, logs, caches, and embeddings. Gate order reduces but does not eliminate retention — scope sessions and audit tool I/O.</li>\n                    <li><strong>Anonymization ≠ de-identification:</strong> masked names re-identify via joins and aggregates. Treat anonymizer output as pseudonymized, not anonymous.</li>\n                    <li><strong>Composed allowed actions leak:</strong> allowed search + allowed email = exfiltration. AND-semantics across identities does not stop two individually-permitted steps from composing into one violation — model dangerous compositions explicitly.</li>\n                    <li><strong>PDP-per-call has a price:</strong> latency, invoice volume, and fail-closed availability all scale with tool-call counts. Deny on PIP-unavailable by default; enabling <code>skipUnneededOrUnavailableIdentitySources</code>-style leniency is an explicitly risk-accepted decision, logged per call.</li>\n                    <li><strong>TOCTOU sessions:</strong> policy or attributes changing mid-session must re-gate open tool loops — a verdict at turn 1 is not a verdict at turn 20.</li>\n                </ul>\n            </div>\n            \n            <div class=\"lesson-section\" style=\"background: rgba(139, 92, 246, 0.08); border-left: 4px solid var(--ai-purple); padding: 0.75rem 1rem; border-radius: 4px;\">\n                <strong>🎮 Try it in the Policy Lab →</strong> Walk Sara’s request through the three gates; change topic, region, PII. Use the controls under the canvas to switch scenarios and watch the verdict change.\n            </div>\n        \n        ",
+  "concepts": [
+    "Prompt Categorization Gate",
+    "Gate Ordering",
+    "Response Anonymization",
+    "Agent Identity",
+    "Tool Calls as Actions"
+  ],
+  "quiz": {
+    "id": "agents_quiz",
+    "title": "AI-Agent Authorization Quiz",
+    "passingScore": 60,
+    "sampleSize": 5,
+    "timeLimit": 480,
+    "questions": [
+      {
+        "id": "q1",
+        "type": "multiple-choice",
+        "question": "Sara asks about product support AND internal security. What happens at Gate 1?",
+        "options": [
+          {
+            "text": "Denied before retrieval — internal_security is outside her allowed categories",
+            "isCorrect": true
+          },
+          {
+            "text": "Allowed — any support keyword suffices",
+            "isCorrect": false
+          },
+          {
+            "text": "Allowed but logged silently",
+            "isCorrect": false
+          },
+          {
+            "text": "The agent answers from memory instead",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Categorization gates the whole interaction. Mixed queries containing restricted topics deny — partial compliance is non-compliance.",
+        "difficulty": 2,
+        "concept": "Prompt Categorization Gate"
+      },
+      {
+        "id": "q2",
+        "type": "multiple-choice",
+        "question": "Why must categorization run BEFORE retrieval?",
+        "options": [
+          {
+            "text": "Otherwise unauthorized content enters context/logs even if the final answer is blocked",
+            "isCorrect": true
+          },
+          {
+            "text": "It makes responses faster",
+            "isCorrect": false
+          },
+          {
+            "text": "Retrieval requires a category label to function",
+            "isCorrect": false
+          },
+          {
+            "text": "Order does not matter",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Late gates leak: retrieved-then-blocked content still touched the model, the logs, and possibly the cache. Deny early.",
+        "difficulty": 3,
+        "concept": "Gate Ordering"
+      },
+      {
+        "id": "q3",
+        "type": "multiple-choice",
+        "question": "Region filter allows eu-central docs; reporter names still show raw. Which gate is missing?",
+        "options": [
+          {
+            "text": "Response anonymization (field-level PII masking on output)",
+            "isCorrect": true
+          },
+          {
+            "text": "Prompt categorization",
+            "isCorrect": false
+          },
+          {
+            "text": "JWT verification",
+            "isCorrect": false
+          },
+          {
+            "text": "DNS filtering",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Retrieval gates documents; anonymization gates fields. The reviewed pattern keeps both — region ≠ de-identification.",
+        "difficulty": 2,
+        "concept": "Response Anonymization"
+      },
+      {
+        "id": "q4",
+        "type": "multiple-choice",
+        "question": "A cleared human tasks an uncleared support agent with reading restricted cases. Verdict under multi-identity AND?",
+        "options": [
+          {
+            "text": "Deny — every identity (human, agent, app) must satisfy its template's rules",
+            "isCorrect": true
+          },
+          {
+            "text": "Allow — the human's clearance covers the agent",
+            "isCorrect": false
+          },
+          {
+            "text": "Allow — agents inherit human rights",
+            "isCorrect": false
+          },
+          {
+            "text": "Allow on weekdays",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "AND semantics close the confused-deputy gap: the weakest identity in the chain gates the decision.",
+        "difficulty": 3,
+        "concept": "Agent Identity"
+      },
+      {
+        "id": "q5",
+        "type": "multiple-choice",
+        "question": "An agent calls delete-customer-record via an MCP tool. How should this be authorized?",
+        "options": [
+          {
+            "text": "As (agent, delete, customer-record) through the PDP — tools are actions on resources",
+            "isCorrect": true
+          },
+          {
+            "text": "Tool calls are internal and need no authorization",
+            "isCorrect": false
+          },
+          {
+            "text": "Allow all tool calls for speed",
+            "isCorrect": false
+          },
+          {
+            "text": "Only authorize the first tool call per session",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Every tool invocation crosses a trust boundary. PDP-per-call with the agent as subject is the reviewed posture.",
+        "difficulty": 2,
+        "concept": "Tool Calls as Actions"
+      },
+      {
+        "id": "q6",
+        "type": "multiple-choice",
+        "question": "A tool result containing injected instructions arrives mid-session. Which gate applies?",
+        "options": [
+          {
+            "text": "Treat tool output as untrusted input — re-categorize before acting on it",
+            "isCorrect": true
+          },
+          {
+            "text": "Trust all tool output implicitly",
+            "isCorrect": false
+          },
+          {
+            "text": "Skip gates once a session is open",
+            "isCorrect": false
+          },
+          {
+            "text": "Allow everything tools return",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Retrieved content is the oldest injection vector in the new stack. Gates re-apply at every trust boundary, including tool returns.",
+        "difficulty": 2,
+        "concept": "Gate Ordering"
+      },
+      {
+        "id": "q7",
+        "type": "multiple-choice",
+        "question": "The support-bot needs broader access than Sara for one debugging session. Safe pattern?",
+        "options": [
+          {
+            "text": "Time-boxed elevation with approval and full tool-I/O audit, auto-expiring",
+            "isCorrect": true
+          },
+          {
+            "text": "Permanent elevation for convenience",
+            "isCorrect": false
+          },
+          {
+            "text": "Share Sara's personal token",
+            "isCorrect": false
+          },
+          {
+            "text": "Disable the PDP for the session",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Exceptional access is normal; permanent exceptional access is a backdoor. Box it in time, approval, and audit.",
+        "difficulty": 3,
+        "concept": "Agent Identity"
+      },
+      {
+        "id": "q8",
+        "type": "multiple-choice",
+        "question": "An allowlisted category name appears inside attacker-quoted text. Handling?",
+        "options": [
+          {
+            "text": "Classify intent and structure, not keywords — quoted payload is data, not instruction",
+            "isCorrect": true
+          },
+          {
+            "text": "Allow — the keyword matched",
+            "isCorrect": false
+          },
+          {
+            "text": "Deny all quoted text everywhere",
+            "isCorrect": false
+          },
+          {
+            "text": "Strip quotes and re-check keywords",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Keyword gates fall to quoting. Categorization must separate instruction from payload, or attackers will supply the keywords.",
+        "difficulty": 2,
+        "concept": "Prompt Categorization Gate"
+      }
+    ]
+  },
+  "animation": {
+    "type": "policy-flow",
+    "title": "Three Gates Walkthrough",
+    "description": "Sara's request through categorize → retrieve → anonymize",
+    "controls": [
+      "flowPrev",
+      "flowNext"
+    ]
+  }
+}

@@ -1,0 +1,246 @@
+{
+  "id": "policy_anatomy",
+  "title": "Anatomy of a Policy Decision",
+  "subtitle": "PEP, PDP, PIP, PAP — the XACML boxes that actually matter",
+  "level": "beginner",
+  "number": 3,
+  "estimatedTime": 35,
+  "difficulty": 2,
+  "prerequisites": [
+    "rbac_abac_rebac"
+  ],
+  "content": "\n                        <div class=\"lesson-section\">\n                            <h3>🧱 The Four Boxes (XACML vocabulary, universal idea)</h3>\n                            <ul>\n                                <li><strong>PEP — Policy Enforcement Point:</strong> intercepts the request (sidecar, gateway filter, middleware). Asks, then enforces. Never decides.</li>\n                                <li><strong>PDP — Policy Decision Point:</strong> evaluates policy + attributes, returns ALLOW/DENY (+ reason). OPA, Cedar engine, OpenFGA server, PlainID PDP.</li>\n                                <li><strong>PIP — Policy Information Point:</strong> supplies attributes (groups, clearance, time, device posture). HR system, IdP, device inventory.</li>\n                                <li><strong>PAP — Policy Administration Point:</strong> authors, versions, ships policy (Git + bundle pipeline + Immuta/PlainID consoles).</li>\n                            </ul>\n                        </div>\n\n                        <div class=\"lesson-section\">\n                            <h3>🔁 The Decision Lifecycle</h3>\n                            <ol>\n                                <li>Client calls <code>GET /reports/q3</code> with a JWT.</li>\n                                <li>PEP intercepts, extracts subject/action/resource/context.</li>\n                                <li>PEP queries PDP: <em>may S do A on R given C?</em></li>\n                                <li>PDP loads the current policy bundle; pulls attributes from PIPs.</li>\n                                <li>PDP evaluates: default DENY unless a permit rule matches (and no forbid overrides).</li>\n                                <li>PDP returns decision + determining policy ids (audit trail).</li>\n                                <li>PEP enforces: forward or 403. Every denial is logged with its reason.</li>\n                            </ol>\n                        </div>\n\n                        <div class=\"lesson-section\">\n                            <h3>📨 What Travels in an AuthZ Query</h3>\n                            <p><strong>Subject</strong> (who: id, roles, groups, tenant), <strong>action</strong> (what verb: read/write/delete, preferably <code>resource:action</code>), <strong>resource</strong> (which object: type, id, owner, tenant, labels), <strong>context</strong> (when/where/how: time, IP, MFA, device). If any of the four is missing, the policy cannot decide correctly — schema it.</p>\n                        </div>\n\n                        <div class=\"lesson-section\">\n                            <h3>⚠️ Two Classic Confusions</h3>\n                            <ul>\n                                <li><strong>PEP vs PDP:</strong> putting rule logic in the middleware <em>is</em> the scattered-if-statement problem. The PEP maps routes to permission strings; the PDP owns the rules.</li>\n                                <li><strong>AuthN tokens vs AuthZ attributes:</strong> a JWT proves identity and carries claims, but group membership, clearance, and resource labels usually come from PIPs at decision time — fresher than token issuance.</li>\n                            </ul>\n                        </div>\n                    ",
+  "concepts": [
+    "PEP",
+    "PDP",
+    "PIP/PAP",
+    "AuthZ Query Shape",
+    "PEP vs PDP Separation"
+  ],
+  "quiz": {
+    "id": "anatomy_quiz",
+    "title": "Policy Decision Anatomy Quiz",
+    "passingScore": 60,
+    "sampleSize": 5,
+    "timeLimit": 420,
+    "questions": [
+      {
+        "id": "q1",
+        "type": "multiple-choice",
+        "question": "A sidecar intercepts GET /payments/123, asks the engine, then forwards or returns 403. Which box is the sidecar?",
+        "options": [
+          {
+            "text": "PEP — it intercepts and enforces, but does not decide",
+            "isCorrect": true
+          },
+          {
+            "text": "PDP — it makes the allow/deny decision",
+            "isCorrect": false
+          },
+          {
+            "text": "PIP — it supplies user attributes",
+            "isCorrect": false
+          },
+          {
+            "text": "PAP — it authors and versions policy",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Enforcement (intercept + forward/deny) is the PEP job. The decision comes from the PDP. Mixing them recreates scattered authorization logic.",
+        "difficulty": 1,
+        "concept": "PEP"
+      },
+      {
+        "id": "q2",
+        "type": "multiple-choice",
+        "question": "Which component returns ALLOW/DENY for (subject, action, resource, context)?",
+        "options": [
+          {
+            "text": "PDP — the policy decision point (OPA, Cedar engine, OpenFGA, PlainID PDP)",
+            "isCorrect": true
+          },
+          {
+            "text": "PEP — the enforcement point",
+            "isCorrect": false
+          },
+          {
+            "text": "PIP — the attribute source",
+            "isCorrect": false
+          },
+          {
+            "text": "CDN — the content cache",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "The PDP owns evaluation. Everything else feeds it (PIP), asks it (PEP), or ships to it (PAP).",
+        "difficulty": 1,
+        "concept": "PDP"
+      },
+      {
+        "id": "q3",
+        "type": "multiple-choice",
+        "question": "Group membership, clearance level, and device posture arrive at decision time from HR/IdP/device systems. What are these systems?",
+        "options": [
+          {
+            "text": "PIPs — policy information points supplying attributes",
+            "isCorrect": true
+          },
+          {
+            "text": "PEPs — enforcement points",
+            "isCorrect": false
+          },
+          {
+            "text": "PAPs — policy authoring tools",
+            "isCorrect": false
+          },
+          {
+            "text": "PDPs — decision points",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Attributes flow from PIPs. Freshness matters: group changes should affect decisions without waiting for token re-issue.",
+        "difficulty": 2,
+        "concept": "PIP/PAP"
+      },
+      {
+        "id": "q4",
+        "type": "multiple-choice",
+        "question": "An authZ query contains subject + action but no resource identifier. Why is this dangerous?",
+        "options": [
+          {
+            "text": "Policy cannot check ownership or tenancy — decisions become coarse allow/deny for whole APIs",
+            "isCorrect": true
+          },
+          {
+            "text": "It makes responses slightly slower",
+            "isCorrect": false
+          },
+          {
+            "text": "It violates REST naming conventions",
+            "isCorrect": false
+          },
+          {
+            "text": "It prevents gzip compression",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "BOLA lives here. Without the resource (type, id, owner, tenant), the PDP can only answer role-wide questions, never is-this-subject-allowed-this-object.",
+        "difficulty": 2,
+        "concept": "AuthZ Query Shape"
+      },
+      {
+        "id": "q5",
+        "type": "multiple-choice",
+        "question": "Where should the rule 'analysts may read only their own tenant' live?",
+        "options": [
+          {
+            "text": "In PDP policy, with the PEP only mapping the route to a permission string",
+            "isCorrect": true
+          },
+          {
+            "text": "Hard-coded in each service handler",
+            "isCorrect": false
+          },
+          {
+            "text": "In the JWT signing key",
+            "isCorrect": false
+          },
+          {
+            "text": "In the frontend router",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "PEP maps (route → permission/action); PDP owns rules. That split keeps one auditable source of truth and lets tests cover the invariant once.",
+        "difficulty": 2,
+        "concept": "PEP vs PDP Separation"
+      },
+      {
+        "id": "q6",
+        "type": "multiple-choice",
+        "question": "A user's department changes in HR but decisions use yesterday's value. Which box is stale?",
+        "options": [
+          {
+            "text": "PIP feed (attribute freshness) — shorten sync or read through at decision time",
+            "isCorrect": true
+          },
+          {
+            "text": "PEP cache of HTML pages",
+            "isCorrect": false
+          },
+          {
+            "text": "PAP font choice",
+            "isCorrect": false
+          },
+          {
+            "text": "PDP power supply",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Decisions are only as fresh as their attributes. PIP latency is an authorization parameter, not an HR detail.",
+        "difficulty": 1,
+        "concept": "PIP/PAP"
+      },
+      {
+        "id": "q7",
+        "type": "multiple-choice",
+        "question": "A request arrives with subject and resource but no action. What should the PDP do?",
+        "options": [
+          {
+            "text": "Deny — an action-less query cannot match least-privilege rules; fix the PEP to send it",
+            "isCorrect": true
+          },
+          {
+            "text": "Guess read, since reads are safe",
+            "isCorrect": false
+          },
+          {
+            "text": "Allow and log verbosely",
+            "isCorrect": false
+          },
+          {
+            "text": "Ask the end user what they meant",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Every AuthZ query needs all four elements. Guessing the verb is how write-access hides inside read-shaped holes.",
+        "difficulty": 2,
+        "concept": "AuthZ Query Shape"
+      },
+      {
+        "id": "q8",
+        "type": "multiple-choice",
+        "question": "Two services ask the same PDP the same question and get different answers. First suspect?",
+        "options": [
+          {
+            "text": "They sent different inputs — stale attributes or different resource ids",
+            "isCorrect": true
+          },
+          {
+            "text": "PDP mood varies by caller",
+            "isCorrect": false
+          },
+          {
+            "text": "Network speed differences",
+            "isCorrect": false
+          },
+          {
+            "text": "Time-zone settings",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "PDPs are deterministic over (policy, input). Divergent answers mean divergent inputs — diff them before blaming the engine.",
+        "difficulty": 1,
+        "concept": "PDP"
+      }
+    ]
+  },
+  "animation": {
+    "type": "policy-flow",
+    "title": "Decision Lifecycle Stepper",
+    "description": "Step through the 7-stage PEP → PDP → PIP flow",
+    "controls": [
+      "flowPrev",
+      "flowNext"
+    ]
+  }
+}

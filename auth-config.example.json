@@ -1,0 +1,10 @@
+{
+  "supabaseUrl": "https://YOUR-PROJECT_CODE.supabase.co",
+  "supabaseAnonKey": "YOUR-PUBLIC-ANON-KEY-eyJhbGciOi..."
+}
+
+// COPY this file to `auth-config.json` and fill in real values from your
+// Supabase project (Project Settings > API). Do NOT commit the real file.
+// `auth-config.json` is gitignored.
+
+// Step-by-step setup guide: docs/PROGRESS_ARCHITECTURE.md

@@ -1,0 +1,245 @@
+{
+  "id": "openfga_production",
+  "title": "OpenFGA in Production",
+  "subtitle": "Models API, writes, checks, and list-objects",
+  "level": "advanced",
+  "number": 14,
+  "estimatedTime": 70,
+  "difficulty": 3,
+  "prerequisites": [
+    "cedar_production"
+  ],
+  "content": "\n            <div class=\"lesson-section\">\n                <h3>🔌 The Four Calls That Matter</h3>\n                <ul>\n                    <li><strong>Model write:</strong> publish a versioned DSL model (<code>fga model write</code>); keep every version — old tuples are interpreted by the current model.</li>\n                    <li><strong>Tuple write/delete:</strong> share-time and revoke-time facts (<code>fga tuple write user:anne editor document:Q3</code>).</li>\n                    <li><strong>Check:</strong> <code>check(user:anne, viewer, document:Q3)</code> → allow/deny at request time.</li>\n                    <li><strong>List-objects:</strong> <em>which documents can anne view?</em> — powers UIs and bulk pre-filtering without N checks.</li>\n                </ul>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-17\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">OpenFGA lifecycle: store, model, tuples, check</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-17')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-bash\"># Store -&gt; model -&gt; tuples -&gt; check (OpenFGA CLI, pinned)\nexport STORE=$(fga store create --name pbac-lab | grep -o 'store_[A-Za-z0-9]*')\nexport MODEL_ID=$(fga model write --store-id $STORE --file model.fga | grep -o 'model_[A-Za-z0-9]*')\n# --model-id is required once a store holds more than one model version;\n# always pass it (copy-paste without it breaks after the second model write)\nfga tuple write --store-id $STORE --model-id $MODEL_ID user:anne editor document:Q3\nfga check --store-id $STORE --model-id $MODEL_ID user:anne viewer document:Q3\n# -&gt; {\"allowed\": true}   (editor =&gt; viewer, concentric)</code></pre>\n                <div id=\"pbac-cb-17\" class=\"code-source\" style=\"display:none;\"># Store -&gt; model -&gt; tuples -&gt; check (OpenFGA CLI, pinned)\nexport STORE=$(fga store create --name pbac-lab | grep -o 'store_[A-Za-z0-9]*')\nexport MODEL_ID=$(fga model write --store-id $STORE --file model.fga | grep -o 'model_[A-Za-z0-9]*')\n# --model-id is required once a store holds more than one model version;\n# always pass it (copy-paste without it breaks after the second model write)\nfga tuple write --store-id $STORE --model-id $MODEL_ID user:anne editor document:Q3\nfga check --store-id $STORE --model-id $MODEL_ID user:anne viewer document:Q3\n# -&gt; {\"allowed\": true}   (editor =&gt; viewer, concentric)</div>\n            </div>\n        \n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>⏱️ Contextual Tuples (Verified Behavior)</h3>\n                <p>Time windows and IP ranges ride along as <strong>contextual tuples</strong> supplied at check-time (docs pseudocode: <code>ip-address-range:10.0.0.0/16</code>, <code>timeslot:18_19</code>). Precision note: gating on them requires <strong>conditions with request context</strong> in the model — contextual tuples alone are just facts. And do not rely on the playground for this path: integration-test time/IP-gated checks against a real server.</p>\n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>🔍 Critical Review Notes</h3>\n                <ul>\n                    <li><strong>Revocation is tuple deletion</strong> — plus cache invalidation. A deleted tuple with a 60s check-cache is a 60s lingering grant. Size caches accordingly.</li>\n                    <li><strong>Write tuples transactionally with your domain writes:</strong> sharing-without-tuple (user sees nothing) and tuple-without-share (dangling grant) are both bugs — same transaction or outbox.</li>\n                    <li><strong>List-objects before check-storms:</strong> rendering <em>all docs anne can view</em> via per-doc checks is N+1 authorization; list-objects is the designed path.</li>\n                </ul>\n            </div>\n            \n            <div class=\"lesson-section\" style=\"background: rgba(139, 92, 246, 0.08); border-left: 4px solid var(--ai-purple); padding: 0.75rem 1rem; border-radius: 4px;\">\n                <strong>🎮 Try it in the Policy Lab →</strong> Trace how team-transitive paths resolve through two hops. Use the controls under the canvas to switch scenarios and watch the verdict change.\n            </div>\n        \n        ",
+  "concepts": [
+    "Model Versioning",
+    "Tuple Writes and Revocation",
+    "List-Objects",
+    "Contextual Tuples",
+    "Cache Invalidation on Revoke"
+  ],
+  "quiz": {
+    "id": "fga_prod_quiz",
+    "title": "OpenFGA in Production Quiz",
+    "passingScore": 60,
+    "sampleSize": 5,
+    "timeLimit": 480,
+    "questions": [
+      {
+        "id": "q1",
+        "type": "multiple-choice",
+        "question": "A user unshares a document (tuple deleted) but keeps access for 60 seconds. Most likely cause?",
+        "options": [
+          {
+            "text": "Check-result cache outliving the revocation — invalidate on tuple writes",
+            "isCorrect": true
+          },
+          {
+            "text": "The model file was too large",
+            "isCorrect": false
+          },
+          {
+            "text": "The user guessed another URL",
+            "isCorrect": false
+          },
+          {
+            "text": "Check API is eventually consistent by design for hours",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Revocation must invalidate cached allows. Cache TTL is a security parameter, not just a performance knob.",
+        "difficulty": 2,
+        "concept": "Cache Invalidation on Revoke"
+      },
+      {
+        "id": "q2",
+        "type": "multiple-choice",
+        "question": "A dashboard must show all documents anne can view. Efficient approach?",
+        "options": [
+          {
+            "text": "List-objects for (anne, viewer, document) — one designed call",
+            "isCorrect": true
+          },
+          {
+            "text": "Check every document id in a loop",
+            "isCorrect": false
+          },
+          {
+            "text": "Show all documents and 403 on click",
+            "isCorrect": false
+          },
+          {
+            "text": "Disable authorization for dashboards",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "List-objects answers the reverse query (subject→objects) natively. Per-object checks for listing is N+1 authZ.",
+        "difficulty": 2,
+        "concept": "List-Objects"
+      },
+      {
+        "id": "q3",
+        "type": "multiple-choice",
+        "question": "Where must contextual tuples (time/IP) be tested?",
+        "options": [
+          {
+            "text": "Against a real OpenFGA server — time/IP gating needs conditions + context, not playground clicks",
+            "isCorrect": true
+          },
+          {
+            "text": "Only in the playground",
+            "isCorrect": false
+          },
+          {
+            "text": "They need no testing",
+            "isCorrect": false
+          },
+          {
+            "text": "In the browser console",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Docs-verified limitation. Playground-green + server-red is the failure this question prevents.",
+        "difficulty": 2,
+        "concept": "Contextual Tuples"
+      },
+      {
+        "id": "q4",
+        "type": "multiple-choice",
+        "question": "Sharing is saved to your DB but the tuple write fails. Result and fix?",
+        "options": [
+          {
+            "text": "User sees nothing (deny) — write tuples transactionally with domain writes",
+            "isCorrect": true
+          },
+          {
+            "text": "User gets admin — fail open is fine here",
+            "isCorrect": false
+          },
+          {
+            "text": "Nothing happens, tuples are optional",
+            "isCorrect": false
+          },
+          {
+            "text": "The model auto-creates missing tuples",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Fail-closed saves you (deny), but the UX is broken. Same-transaction/outbox writes keep share-state and authZ-state consistent.",
+        "difficulty": 3,
+        "concept": "Tuple Writes and Revocation"
+      },
+      {
+        "id": "q5",
+        "type": "multiple-choice",
+        "question": "Why keep every published model version?",
+        "options": [
+          {
+            "text": "Audits and rollbacks: know which semantics past decisions used",
+            "isCorrect": true
+          },
+          {
+            "text": "They take up no space",
+            "isCorrect": false
+          },
+          {
+            "text": "OpenFGA requires daily model writes",
+            "isCorrect": false
+          },
+          {
+            "text": "Versions make checks faster",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Model edits reinterpret stored tuples. Version history lets you answer 'why was this allowed in March?' and roll back meaning.",
+        "difficulty": 2,
+        "concept": "Model Versioning"
+      },
+      {
+        "id": "q6",
+        "type": "multiple-choice",
+        "question": "Sharing succeeds in the app DB but the tuple write times out. State?",
+        "options": [
+          {
+            "text": "Inconsistent — user sees nothing (deny) but believes it shared; reconcile via outbox/retry",
+            "isCorrect": true
+          },
+          {
+            "text": "Fine — the app DB is the source of truth",
+            "isCorrect": false
+          },
+          {
+            "text": "Grant admin to compensate",
+            "isCorrect": false
+          },
+          {
+            "text": "Delete the document",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Fail-closed saves the data but breaks the UX. Dual-write needs outbox reconciliation, not hope.",
+        "difficulty": 2,
+        "concept": "Tuple Writes and Revocation"
+      },
+      {
+        "id": "q7",
+        "type": "multiple-choice",
+        "question": "List-objects returns 50,000 objects for a super-admin dashboard. Fix?",
+        "options": [
+          {
+            "text": "Paginate and scope the query (type and relation filters) — authorization output needs product limits too",
+            "isCorrect": true
+          },
+          {
+            "text": "Disable list-objects",
+            "isCorrect": false
+          },
+          {
+            "text": "Return all fifty thousand always",
+            "isCorrect": false
+          },
+          {
+            "text": "Cache the full set forever",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Reverse queries still need bounds. Unbounded authorization output is a DoS vector wearing a feature costume.",
+        "difficulty": 2,
+        "concept": "List-Objects"
+      },
+      {
+        "id": "q8",
+        "type": "multiple-choice",
+        "question": "You must rename a relation. Safe sequence?",
+        "options": [
+          {
+            "text": "Add the new relation, dual-write tuples, migrate checks, then remove the old — a schema migration",
+            "isCorrect": true
+          },
+          {
+            "text": "Rename in place on a Friday",
+            "isCorrect": false
+          },
+          {
+            "text": "Delete all tuples first",
+            "isCorrect": false
+          },
+          {
+            "text": "Relations can never be renamed",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Relation renames reinterpret stored tuples. Expand-migrate-contract, exactly like database schemas.",
+        "difficulty": 1,
+        "concept": "Model Versioning"
+      }
+    ]
+  },
+  "animation": {
+    "type": "openfga-graph",
+    "title": "Production Check Paths",
+    "description": "Trace multi-hop resolution the way check() does",
+    "controls": [
+      "setFgaScenario"
+    ]
+  }
+}

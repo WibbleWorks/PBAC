@@ -1,0 +1,247 @@
+{
+  "id": "xacml_alfa",
+  "title": "XACML and ALFA",
+  "subtitle": "Targets, combining algorithms, obligations",
+  "level": "intermediate",
+  "number": 10,
+  "estimatedTime": 60,
+  "difficulty": 2,
+  "prerequisites": [
+    "rego_api_authz"
+  ],
+  "content": "\n            <div class=\"lesson-section\">\n                <h3>🏛️ Where the Boxes Came From</h3>\n                <p>XACML (OASIS standard) gave the field its vocabulary — PEP/PDP/PIP/PAP from Lesson 3 are XACML terms — and its architecture: requests and policies as XML, decisions Permit/Deny/NotApplicable/Indeterminate. It lost on ergonomics: even simple rules drown in angle brackets. <strong>ALFA</strong> (Abbreviated Language for Authorization, OASIS-adopted 2014) keeps the XACML model with readable syntax. Every modern engine in this course replays XACML ideas: learn them once here, recognize them everywhere.</p>\n                <p><strong>Reading note:</strong> the ALFA below is a shape-illustrative fragment (Enforcer tutorial form) — a runnable file also needs attribute declarations, and bare <code>CurrentTime</code> is bag-valued in strict ALFA (canonical: <code>timeInRange(timeOneAndOnly(currentTime), ...)</code>). Read it for structure, not for pasting.</p>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-10\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">ALFA: policy, target scoping, rule with permit + condition</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-10')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-alfa\">// Last verified: 2026-09 vs Enforcer ALFA docs + Axiomatics guides\nnamespace AcmeCorp\n{\n    import Oasis.Attributes\n\n    policy buildingAccess\n    {\n        apply denyOverrides\n        target clause ResourceType == \"door\"\n\n        rule openMainDoor\n        {\n            target clause Resource == \"mainDoor\" and Action == \"open\"\n            permit\n            condition Subject.Role == \"employee\" and\n                      CurrentTime &gt; \"08:00:00\":time and\n                      CurrentTime &lt; \"18:00:00\":time\n        }\n    }\n}</code></pre>\n                <div id=\"pbac-cb-10\" class=\"code-source\" style=\"display:none;\">// Last verified: 2026-09 vs Enforcer ALFA docs + Axiomatics guides\nnamespace AcmeCorp\n{\n    import Oasis.Attributes\n\n    policy buildingAccess\n    {\n        apply denyOverrides\n        target clause ResourceType == \"door\"\n\n        rule openMainDoor\n        {\n            target clause Resource == \"mainDoor\" and Action == \"open\"\n            permit\n            condition Subject.Role == \"employee\" and\n                      CurrentTime &gt; \"08:00:00\":time and\n                      CurrentTime &lt; \"18:00:00\":time\n        }\n    }\n}</div>\n            </div>\n        \n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>⚖️ Combining Algorithms: Conflict Resolution, Named</h3>\n                <p>When children disagree, the parent's <code>apply</code> clause decides — the idea Cedar's forbid-wins and OpenFGA's path-union both replay:</p>\n                <ul>\n                    <li><strong>denyOverrides:</strong> any Deny wins (Cedar forbid thinks this way).</li>\n                    <li><strong>permitOverrides:</strong> any Permit wins.</li>\n                    <li><strong>firstApplicable:</strong> first non-NotApplicable child wins (order matters — like middleware route tables).</li>\n                    <li><strong>denyUnlessPermit / permitUnlessDeny:</strong> default-denied / default-permitted closes (this course standardizes on denyUnlessPermit).</li>\n                </ul>\n                <p><strong>Target vs condition:</strong> targets only compare attributes to values and scope <em>whether a rule is considered</em> (false → NotApplicable); conditions run arbitrary functions and decide the outcome. Cheap scoping first, expensive logic second — the same instinct as PEP route-mapping before PDP evaluation.</p>\n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>📣 Obligations and Advice (Decisions With Side Jobs)</h3>\n                <p>XACML decisions can carry <strong>obligations</strong> (must-do: log this access) and <strong>advice</strong> (should-do: show this message). Verified Enforcer pattern — a medical-records read permit obligates an audit entry while the deny path raises an alert:</p>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-11\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">ALFA obligations (must log) vs advice (should alert)</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-11')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-alfa\">rule readPatientsRecords\n{\n    permit\n    target clause ResourceType == \"MedicalRecord\" and Action == \"Read\"\n    condition Subject.Role == \"Doctor\"\n\n    on permit\n    {\n        obligation Auditor.RecordAccess\n        {\n            Auditor.Who = Subject.Name\n            Auditor.When = CurrentDateTime\n        }\n    }\n    on deny\n    {\n        advice Auditor.Alert\n        {\n            Auditor.Who = Subject.Name\n            Auditor.Message = \"Attempted medical-record access, denied\"\n        }\n    }\n}</code></pre>\n                <div id=\"pbac-cb-11\" class=\"code-source\" style=\"display:none;\">rule readPatientsRecords\n{\n    permit\n    target clause ResourceType == \"MedicalRecord\" and Action == \"Read\"\n    condition Subject.Role == \"Doctor\"\n\n    on permit\n    {\n        obligation Auditor.RecordAccess\n        {\n            Auditor.Who = Subject.Name\n            Auditor.When = CurrentDateTime\n        }\n    }\n    on deny\n    {\n        advice Auditor.Alert\n        {\n            Auditor.Who = Subject.Name\n            Auditor.Message = \"Attempted medical-record access, denied\"\n        }\n    }\n}</div>\n            </div>\n        \n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>🔍 Critical Review Notes</h3>\n                <ul>\n                    <li><strong>Why not XACML XML in 2026:</strong> verbosity killed adoption, not the model. New codebases should not start in XACML — but you will inherit it in banks, hospitals, and governments, and this lesson is the decoder ring.</li>\n                    <li><strong>Obligations need a PEP that honors them:</strong> an obligation the enforcer ignores is documentation, not control. Verify obligation handling in tests, not just decisions.</li>\n                    <li><strong>firstApplicable is order-sensitive:</strong> same hazard as middleware route tables (Lesson 19) — specific-first, tested overlaps.</li>\n                </ul>\n            </div>\n            \n            <div class=\"lesson-section\" style=\"background: rgba(139, 92, 246, 0.08); border-left: 4px solid var(--ai-purple); padding: 0.75rem 1rem; border-radius: 4px;\">\n                <strong>🎮 Try it in the Policy Lab →</strong> Step a door-access request through target scoping, then condition, then combining. Use the controls under the canvas to switch scenarios and watch the verdict change.\n            </div>\n        \n        ",
+  "concepts": [
+    "XACML Lineage",
+    "ALFA Targets",
+    "Combining Algorithms",
+    "Target vs Condition",
+    "Obligations and Advice",
+    "Default-Closed Combines"
+  ],
+  "quiz": {
+    "id": "xacml_quiz",
+    "title": "XACML and ALFA Quiz",
+    "passingScore": 60,
+    "sampleSize": 5,
+    "timeLimit": 420,
+    "questions": [
+      {
+        "id": "q1",
+        "type": "multiple-choice",
+        "question": "Where do the terms PEP, PDP, PIP, and PAP come from?",
+        "options": [
+          {
+            "text": "XACML — the OASIS standard that named the architecture",
+            "isCorrect": true
+          },
+          {
+            "text": "Invented for this course",
+            "isCorrect": false
+          },
+          {
+            "text": "TCP/IP packet headers",
+            "isCorrect": false
+          },
+          {
+            "text": "SQL query clauses",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Lesson 3's boxes are XACML vocabulary. The standard lost on ergonomics; its architecture won everywhere.",
+        "difficulty": 1,
+        "concept": "XACML Lineage"
+      },
+      {
+        "id": "q2",
+        "type": "multiple-choice",
+        "question": "A rule's target clause evaluates to false. The rule's outcome?",
+        "options": [
+          {
+            "text": "NotApplicable — the rule is not considered",
+            "isCorrect": true
+          },
+          {
+            "text": "Deny",
+            "isCorrect": false
+          },
+          {
+            "text": "Permit",
+            "isCorrect": false
+          },
+          {
+            "text": "The engine crashes",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Targets scope consideration, not outcomes. False target means the PDP skips the rule entirely.",
+        "difficulty": 1,
+        "concept": "ALFA Targets"
+      },
+      {
+        "id": "q3",
+        "type": "multiple-choice",
+        "question": "Two child rules return Permit and Deny under apply denyOverrides. Result?",
+        "options": [
+          {
+            "text": "Deny — any Deny wins and evaluation stops",
+            "isCorrect": true
+          },
+          {
+            "text": "Permit — permits outrank",
+            "isCorrect": false
+          },
+          {
+            "text": "First-listed wins",
+            "isCorrect": false
+          },
+          {
+            "text": "Indeterminate always",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "denyOverrides is Cedar-forbid thinking with a name: Deny dominates regardless of position.",
+        "difficulty": 2,
+        "concept": "Combining Algorithms"
+      },
+      {
+        "id": "q4",
+        "type": "multiple-choice",
+        "question": "Target clauses may only compare attributes to values, while conditions run arbitrary functions. Why the split?",
+        "options": [
+          {
+            "text": "Cheap scoping first, expensive logic second — same instinct as route-mapping before evaluation",
+            "isCorrect": true
+          },
+          {
+            "text": "Targets are decorative",
+            "isCorrect": false
+          },
+          {
+            "text": "Conditions cannot use attributes",
+            "isCorrect": false
+          },
+          {
+            "text": "There is no reason",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Targets prune the candidate set with cheap comparisons; conditions spend compute only where relevant.",
+        "difficulty": 2,
+        "concept": "Target vs Condition"
+      },
+      {
+        "id": "q5",
+        "type": "multiple-choice",
+        "question": "A permit carries an obligation to log the access, but the PEP ignores obligations. Status?",
+        "options": [
+          {
+            "text": "Broken control — obligations need enforcing PEPs, verified in tests",
+            "isCorrect": true
+          },
+          {
+            "text": "Fine — obligations are advisory by definition",
+            "isCorrect": false
+          },
+          {
+            "text": "The permit becomes a deny",
+            "isCorrect": false
+          },
+          {
+            "text": "Obligations enforce themselves",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Obligations (must-do) differ from advice (should-do) precisely in enforcement. Unenforced obligations are documentation.",
+        "difficulty": 2,
+        "concept": "Obligations and Advice"
+      },
+      {
+        "id": "q6",
+        "type": "multiple-choice",
+        "question": "Which combining algorithm is this course's standard posture?",
+        "options": [
+          {
+            "text": "denyUnlessPermit — closed unless a permit matches",
+            "isCorrect": true
+          },
+          {
+            "text": "permitUnlessDeny — open unless forbidden (polarity flip)",
+            "isCorrect": false
+          },
+          {
+            "text": "firstApplicable with order never mattering",
+            "isCorrect": false
+          },
+          {
+            "text": "Majority vote of children",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "denyUnlessPermit is default-deny with a combining-algorithm name: Rego defaults, Cedar semantics, ReBAC no-path-deny all rhyme with it.",
+        "difficulty": 1,
+        "concept": "Default-Closed Combines"
+      },
+      {
+        "id": "q7",
+        "type": "multiple-choice",
+        "question": "Under firstApplicable, a broad early rule shadows a strict later one. Fix?",
+        "options": [
+          {
+            "text": "Order specific-first and test overlaps — same discipline as middleware route tables",
+            "isCorrect": true
+          },
+          {
+            "text": "Delete all broad rules",
+            "isCorrect": false
+          },
+          {
+            "text": "Switch to random order",
+            "isCorrect": false
+          },
+          {
+            "text": "Nothing — shadowing is safe",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Order-sensitive combiners inherit order-sensitive hazards. Specific-first plus overlap tests, everywhere.",
+        "difficulty": 2,
+        "concept": "Combining Algorithms"
+      },
+      {
+        "id": "q8",
+        "type": "multiple-choice",
+        "question": "Should a new 2026 codebase start in XACML XML?",
+        "options": [
+          {
+            "text": "No — verbosity killed adoption; learn the model here, build in Rego/Cedar/ReBAC, read XACML where inherited",
+            "isCorrect": true
+          },
+          {
+            "text": "Yes — auditors accept only raw XACML XML",
+            "isCorrect": false
+          },
+          {
+            "text": "Yes — Rego and Cedar cannot express combining algorithms",
+            "isCorrect": false
+          },
+          {
+            "text": "Yes — modern PDPs require XML input",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "The honest verdict: model yes, syntax no. Banks and hospitals will still hand you XACML — now you can read it.",
+        "difficulty": 1,
+        "concept": "XACML Lineage"
+      }
+    ]
+  },
+  "animation": {
+    "type": "policy-flow",
+    "title": "Target → Condition → Combine",
+    "description": "Step a request through scoping, evaluation, and combining",
+    "controls": [
+      "flowPrev",
+      "flowNext"
+    ]
+  }
+}

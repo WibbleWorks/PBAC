@@ -1,0 +1,245 @@
+{
+  "id": "opa_production",
+  "title": "OPA in Production",
+  "subtitle": "Bundles, data injection, REST, and hot reload",
+  "level": "advanced",
+  "number": 11,
+  "estimatedTime": 75,
+  "difficulty": 3,
+  "prerequisites": [
+    "openfga_foundations"
+  ],
+  "content": "\n            <div class=\"lesson-section\">\n                <h3>📦 From Files to Bundles</h3>\n                <p>Real estates do not PUT Rego through ad-hoc REST calls (the demo-repos do that for teaching). Production: <strong>.rego + data.json in Git → CI (opa fmt, opa test) → signed bundle → OPA sidecars poll/push</strong>. Hot reload lands in under a second with zero restarts — the rest-rego sidecar demonstrates exactly this.</p>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-12\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">OPA production loop: fmt, test, bundle, inject data</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-12')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-bash\"># CI gate for every policy change (copy into your pipeline)\nopa fmt --diff ./policies        # canonical formatting, diff fails the build\nopa test ./policies/ -v          # allow-tests + deny-tests + regression tests\nopa build -b ./policies -o bundle.tar.gz   # ship one artifact\n\n# Data injection at runtime (roles WITHOUT redeploying policy):\n# PUT /v1/data/user_roles/alice  [\"analyst\"]\n# PATCH /v1/data/cnapp/rbac  [{\"op\":\"add\",\"path\":\"/blacklist/...\",\"value\":{...}}]</code></pre>\n                <div id=\"pbac-cb-12\" class=\"code-source\" style=\"display:none;\"># CI gate for every policy change (copy into your pipeline)\nopa fmt --diff ./policies        # canonical formatting, diff fails the build\nopa test ./policies/ -v          # allow-tests + deny-tests + regression tests\nopa build -b ./policies -o bundle.tar.gz   # ship one artifact\n\n# Data injection at runtime (roles WITHOUT redeploying policy):\n# PUT /v1/data/user_roles/alice  [\"analyst\"]\n# PATCH /v1/data/cnapp/rbac  [{\"op\":\"add\",\"path\":\"/blacklist/...\",\"value\":{...}}]</div>\n            </div>\n        \n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>📨 Decision API, Precisely</h3>\n                <p>Package <code>app.rbac</code> is queried at <code>POST /v1/data/app/rbac</code> with <code>{\"input\": {...}}</code> — the wrapper key is mandatory and the #1 beginner 404/undefined cause in every demo repo. Query a sub-rule (<code>/v1/data/demo/allow</code>) for booleans, or the package path for the full decision document.</p>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-13\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">Decision call: input wrapper + package-derived path</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-13')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-bash\">curl -s -X POST localhost:8181/v1/data/demo/allow \\\n  -H 'Content-Type: application/json' \\\n  -d '{ \"input\": { \"method\": \"PUT\", \"path\": \"/teams/123\",\n                   \"roles\": [\"analyst\"], \"groups\": [\"Team123\"] } }'\n# -&gt; {\"result\": true}   (team rule matched; Team999 would return false)</code></pre>\n                <div id=\"pbac-cb-13\" class=\"code-source\" style=\"display:none;\">curl -s -X POST localhost:8181/v1/data/demo/allow \\\n  -H 'Content-Type: application/json' \\\n  -d '{ \"input\": { \"method\": \"PUT\", \"path\": \"/teams/123\",\n                   \"roles\": [\"analyst\"], \"groups\": [\"Team123\"] } }'\n# -&gt; {\"result\": true}   (team rule matched; Team999 would return false)</div>\n            </div>\n        \n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>🔍 Critical Review: Production Gaps the Demos Admit</h3>\n                <ul>\n                    <li><strong>Debug with reasons:</strong> the zero-trust gatekeeper repo queries a companion <code>data.zt.authz.reasons</code> rule to name the vetoing sub-policy. Ship a reasons rule from day one.</li>\n                    <li><strong>Decision logs:</strong> OPA can ship every decision (input + result + policy id) to your log pipeline — the audit trail compliance asked for in Lesson 5.</li>\n                    <li><strong>Cache carefully:</strong> the Keycloak-middleware pattern caches decisions ~5s with <code>OPA_FAIL_OPEN=false</code>. Cache keys must include tenant + roles + resource, or you will serve alice's verdict to bob.</li>\n                </ul>\n            </div>\n            \n            <div class=\"lesson-section\" style=\"background: rgba(139, 92, 246, 0.08); border-left: 4px solid var(--ai-purple); padding: 0.75rem 1rem; border-radius: 4px;\">\n                <strong>🎮 Try it in the Policy Lab →</strong> Compare sidecar vs gateway vs middleware latency and failure posture. Use the controls under the canvas to switch scenarios and watch the verdict change.\n            </div>\n        \n        ",
+  "concepts": [
+    "Policy Bundles",
+    "Data Injection API",
+    "Decision API Paths",
+    "Decision Logs and Reasons",
+    "Decision Caching"
+  ],
+  "quiz": {
+    "id": "opa_prod_quiz",
+    "title": "OPA in Production Quiz",
+    "passingScore": 60,
+    "sampleSize": 5,
+    "timeLimit": 480,
+    "questions": [
+      {
+        "id": "q1",
+        "type": "multiple-choice",
+        "question": "What is the production path for a policy change?",
+        "options": [
+          {
+            "text": "Git → opa fmt/test in CI → bundle → sidecars hot-reload",
+            "isCorrect": true
+          },
+          {
+            "text": "SSH into servers and edit Rego by hand",
+            "isCorrect": false
+          },
+          {
+            "text": "PUT the policy via ad-hoc REST calls in production",
+            "isCorrect": false
+          },
+          {
+            "text": "Policies never change after launch",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Policy-as-code earns its name: reviewed, tested, bundled, distributed. Ad-hoc REST PUTs are for learning, not for prod.",
+        "difficulty": 1,
+        "concept": "Policy Bundles"
+      },
+      {
+        "id": "q2",
+        "type": "multiple-choice",
+        "question": "POST /v1/data/demo/allow with a bare input (no input wrapper key). What happens?",
+        "options": [
+          {
+            "text": "Rules see empty input and deny (or misbehave) — the wrapper is mandatory",
+            "isCorrect": true
+          },
+          {
+            "text": "OPA auto-detects the format",
+            "isCorrect": false
+          },
+          {
+            "text": "It returns allow=true for convenience",
+            "isCorrect": false
+          },
+          {
+            "text": "The server deletes the policy",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Every demo repo calls this out: runtime facts must sit under input. Missing wrapper is the classic 'policy works in playground, denies in prod' bug.",
+        "difficulty": 2,
+        "concept": "Decision API Paths"
+      },
+      {
+        "id": "q3",
+        "type": "multiple-choice",
+        "question": "Alice's admin role is revoked. Fastest correct propagation without redeploying policy?",
+        "options": [
+          {
+            "text": "PUT /v1/data/user_roles/alice with the new role list (data injection)",
+            "isCorrect": true
+          },
+          {
+            "text": "Rewrite and redeploy all Rego files",
+            "isCorrect": false
+          },
+          {
+            "text": "Restart every application server",
+            "isCorrect": false
+          },
+          {
+            "text": "Wait for the JWT to expire someday",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Data (who-has-what-role) is separate from policy (what-roles-mean) precisely so revocation is a data write, demonstrated in the REST demo repos.",
+        "difficulty": 2,
+        "concept": "Data Injection API"
+      },
+      {
+        "id": "q4",
+        "type": "multiple-choice",
+        "question": "A denial reaches your on-call with no explanation. What should have existed?",
+        "options": [
+          {
+            "text": "A reasons rule + decision logs naming the determining policy",
+            "isCorrect": true
+          },
+          {
+            "text": "A louder 403 status code",
+            "isCorrect": false
+          },
+          {
+            "text": "More permissive rules so denials never happen",
+            "isCorrect": false
+          },
+          {
+            "text": "Deleting the logs to save disk",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "The gatekeeper repo's reasons rule is the pattern: every deny carries its cause; decision logs preserve input+result for audit.",
+        "difficulty": 2,
+        "concept": "Decision Logs and Reasons"
+      },
+      {
+        "id": "q5",
+        "type": "multiple-choice",
+        "question": "You cache PDP decisions. What must the cache key include?",
+        "options": [
+          {
+            "text": "Subject identity/roles + tenant + action + resource (+ relevant context)",
+            "isCorrect": true
+          },
+          {
+            "text": "Only the URL path",
+            "isCorrect": false
+          },
+          {
+            "text": "Only the time of day",
+            "isCorrect": false
+          },
+          {
+            "text": "Caching is never allowed",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Under-keyed caches serve one user's verdict to another — a cache-shaped authZ bypass. Key everything the decision depends on; TTL in seconds.",
+        "difficulty": 3,
+        "concept": "Decision Caching"
+      },
+      {
+        "id": "q6",
+        "type": "multiple-choice",
+        "question": "You query /v1/data/app instead of /v1/data/app/allow. Difference?",
+        "options": [
+          {
+            "text": "Full decision document vs boolean — document for audit, boolean for the hot path",
+            "isCorrect": true
+          },
+          {
+            "text": "No difference at all",
+            "isCorrect": false
+          },
+          {
+            "text": "One is faster to type",
+            "isCorrect": false
+          },
+          {
+            "text": "The path is case-sensitive magic",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Package path returns the whole document (reasons, obligations); sub-rule path returns the boolean. Choose per consumer.",
+        "difficulty": 2,
+        "concept": "Decision API Paths"
+      },
+      {
+        "id": "q7",
+        "type": "multiple-choice",
+        "question": "Decision logs must exclude PII but preserve cause. How?",
+        "options": [
+          {
+            "text": "Log inputs selectively (drop raw claims) plus determining policy ids and reason codes",
+            "isCorrect": true
+          },
+          {
+            "text": "Log absolutely everything",
+            "isCorrect": false
+          },
+          {
+            "text": "Disable decision logs",
+            "isCorrect": false
+          },
+          {
+            "text": "Log only allows",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Auditability and privacy compose: keep the why (policy ids, reasons), drop the who (raw claims).",
+        "difficulty": 2,
+        "concept": "Decision Logs and Reasons"
+      },
+      {
+        "id": "q8",
+        "type": "multiple-choice",
+        "question": "Two sidecars run bundle v41 and v42 during rollout. Risk?",
+        "options": [
+          {
+            "text": "Verdict skew across instances — pin versions, roll forward fast, monitor diff rate",
+            "isCorrect": true
+          },
+          {
+            "text": "None — versions are cosmetic",
+            "isCorrect": false
+          },
+          {
+            "text": "Faster decisions overall",
+            "isCorrect": false
+          },
+          {
+            "text": "Bundles auto-heal to newest",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Mixed-version fleets answer the same question differently. Bundle rollout is a deployment like any other.",
+        "difficulty": 1,
+        "concept": "Policy Bundles"
+      }
+    ]
+  },
+  "animation": {
+    "type": "auth-patterns",
+    "title": "Enforcement Patterns Compared",
+    "description": "Sidecar vs gateway vs middleware: flow, latency, failure mode",
+    "controls": [
+      "setAuthPattern"
+    ]
+  }
+}

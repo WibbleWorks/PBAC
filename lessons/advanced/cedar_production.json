@@ -1,0 +1,245 @@
+{
+  "id": "cedar_production",
+  "title": "Cedar in Production",
+  "subtitle": "Schemas, templates, and Verified Permissions",
+  "level": "advanced",
+  "number": 13,
+  "estimatedTime": 70,
+  "difficulty": 3,
+  "prerequisites": [
+    "opa_data_filtering"
+  ],
+  "content": "\n            <div class=\"lesson-section\">\n                <h3>📐 Schema First: The Compiler for Your Policy</h3>\n                <p>Cedar schemas declare entity shapes and legal (principal, action, resource) combinations. The validator rejects nonsense policies <em>before</em> deployment — e.g. comparing a User to a Photo owner of the wrong type. This is Cedar's edge over stringly-typed Rego inputs.</p>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-15\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">Cedar schema: typed entities + action applicability</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-15')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-cedar\">// Cedar schema (human form): principals, resources, actions, member attrs\nentity User { department: String, clearance: Long };\nentity Photo { owner: User, private: Boolean };\naction \"view\" appliesTo { principal: [User], resource: [Photo], context: { mfa: Boolean } };\naction \"editPhoto\" appliesTo { principal: [User], resource: [Photo], context: {} };</code></pre>\n                <div id=\"pbac-cb-15\" class=\"code-source\" style=\"display:none;\">// Cedar schema (human form): principals, resources, actions, member attrs\nentity User { department: String, clearance: Long };\nentity Photo { owner: User, private: Boolean };\naction \"view\" appliesTo { principal: [User], resource: [Photo], context: { mfa: Boolean } };\naction \"editPhoto\" appliesTo { principal: [User], resource: [Photo], context: {} };</div>\n            </div>\n        \n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>🧩 Templates: One Rule, Many Links</h3>\n                <p>Policy <strong>templates</strong> leave slots (<code>?principal</code>, <code>?resource</code>) filled at link time. The docs' verified example ships a static permit plus a forbid template — one template, thousands of scoped links, no copy-paste policies.</p>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-16\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">Cedar template slot: forbid linked per resource scope</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-16')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-cedar\">// Template: ?resource filled per-link (e.g. per folder) at deploy time\nforbid (\n    principal == User::\"12UA45\",\n    action == Action::\"view\",\n    resource in ?resource\n);</code></pre>\n                <div id=\"pbac-cb-16\" class=\"code-source\" style=\"display:none;\">// Template: ?resource filled per-link (e.g. per folder) at deploy time\nforbid (\n    principal == User::\"12UA45\",\n    action == Action::\"view\",\n    resource in ?resource\n);</div>\n            </div>\n        \n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>☁️ Amazon Verified Permissions (Managed PDP)</h3>\n                <ul>\n                    <li><strong>IsAuthorized:</strong> your service sends (principal, action, resource, context, entities) and gets decision + determining policies. Same request shape as Lesson 8, over HTTPS, with CloudTrail audit.</li>\n                    <li><strong>Policy stores version everything;</strong> schema validation runs at write time — bad policies are rejected, not deployed.</li>\n                    <li><strong>Honest costs:</strong> per-request pricing + network hop + AWS coupling. Exit path: Cedar is open-source — the same policies run in the embedded engine (must keep entity feeds portable).</li>\n                </ul>\n            </div>\n            \n            <div class=\"lesson-section\" style=\"background: rgba(139, 92, 246, 0.08); border-left: 4px solid var(--ai-purple); padding: 0.75rem 1rem; border-radius: 4px;\">\n                <strong>🎮 Try it in the Policy Lab →</strong> Re-run the Cedar scenarios with a private-photo forbid linked per folder. Use the controls under the canvas to switch scenarios and watch the verdict change.\n            </div>\n        \n        ",
+  "concepts": [
+    "Cedar Schema",
+    "Policy Templates and Slots",
+    "Verified Permissions IsAuthorized",
+    "Schema Validation",
+    "Managed PDP Trade-offs"
+  ],
+  "quiz": {
+    "id": "cedar_prod_quiz",
+    "title": "Cedar in Production Quiz",
+    "passingScore": 60,
+    "sampleSize": 5,
+    "timeLimit": 480,
+    "questions": [
+      {
+        "id": "q1",
+        "type": "multiple-choice",
+        "question": "What does a Cedar schema give you that raw Rego inputs do not?",
+        "options": [
+          {
+            "text": "Write-time validation: illegal principal/action/resource combos and type errors are rejected before deploy",
+            "isCorrect": true
+          },
+          {
+            "text": "Faster network speeds",
+            "isCorrect": false
+          },
+          {
+            "text": "Free cloud hosting",
+            "isCorrect": false
+          },
+          {
+            "text": "Automatic role assignment to all users",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Schemas are Cedar's headline operational advantage: the validator catches type/category errors at authoring time instead of as 3am denies.",
+        "difficulty": 2,
+        "concept": "Cedar Schema"
+      },
+      {
+        "id": "q2",
+        "type": "multiple-choice",
+        "question": "What is a policy template slot (?resource)?",
+        "options": [
+          {
+            "text": "A placeholder filled at link time so one template serves many scoped policies",
+            "isCorrect": true
+          },
+          {
+            "text": "A syntax error",
+            "isCorrect": false
+          },
+          {
+            "text": "A wildcard granting everything",
+            "isCorrect": false
+          },
+          {
+            "text": "A comment marker",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Templates (docs-verified forbid example) avoid copy-paste per-folder/per-user policies: write once, link per scope.",
+        "difficulty": 2,
+        "concept": "Policy Templates and Slots"
+      },
+      {
+        "id": "q3",
+        "type": "multiple-choice",
+        "question": "Your service calls AVP IsAuthorized. What must it send?",
+        "options": [
+          {
+            "text": "Principal, action, resource, context, entities (+ policy store id)",
+            "isCorrect": true
+          },
+          {
+            "text": "Only the username",
+            "isCorrect": false
+          },
+          {
+            "text": "The entire database",
+            "isCorrect": false
+          },
+          {
+            "text": "Nothing — AVP reads minds",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Managed or embedded, Cedar needs the same four request elements plus entity data. The transport changes; the contract does not.",
+        "difficulty": 1,
+        "concept": "Verified Permissions IsAuthorized"
+      },
+      {
+        "id": "q4",
+        "type": "multiple-choice",
+        "question": "A policy comparing User.clearance (Long) to a String literal is saved. When do you learn about it?",
+        "options": [
+          {
+            "text": "At write time — schema validation rejects it before deployment",
+            "isCorrect": true
+          },
+          {
+            "text": "Never — it silently allows everything",
+            "isCorrect": false
+          },
+          {
+            "text": "Only after a breach",
+            "isCorrect": false
+          },
+          {
+            "text": "When the invoice arrives",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Write-time rejection is the point of schemas: bad policy never becomes running policy.",
+        "difficulty": 2,
+        "concept": "Schema Validation"
+      },
+      {
+        "id": "q5",
+        "type": "multiple-choice",
+        "question": "What is the honest exit path from a managed Cedar PDP?",
+        "options": [
+          {
+            "text": "Cedar is open-source: same policies run embedded; keep entity feeds portable",
+            "isCorrect": true
+          },
+          {
+            "text": "There is none — rewrite everything",
+            "isCorrect": false
+          },
+          {
+            "text": "Export to screenshots and retype",
+            "isCorrect": false
+          },
+          {
+            "text": "Managed PDPs cannot be left",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Open language + portable entity pipelines = negotiable lock-in. The course rule: every platform lesson names its exit.",
+        "difficulty": 2,
+        "concept": "Managed PDP Trade-offs"
+      },
+      {
+        "id": "q6",
+        "type": "multiple-choice",
+        "question": "A template would need linking per user for 10,000 users. Better design?",
+        "options": [
+          {
+            "text": "Group-based links (team entities as parents) — links scale with groups, not users",
+            "isCorrect": true
+          },
+          {
+            "text": "Ten thousand individual templates",
+            "isCorrect": false
+          },
+          {
+            "text": "One giant permit for everyone",
+            "isCorrect": false
+          },
+          {
+            "text": "Skip templates entirely",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Templates multiply by scope count. Bind scopes to groups and let membership do the fan-out.",
+        "difficulty": 2,
+        "concept": "Policy Templates and Slots"
+      },
+      {
+        "id": "q7",
+        "type": "multiple-choice",
+        "question": "A schema update removes an attribute that policies still use. When is it caught?",
+        "options": [
+          {
+            "text": "At validate/write time — that is the entire point of schemas",
+            "isCorrect": true
+          },
+          {
+            "text": "Never — it fails silently",
+            "isCorrect": false
+          },
+          {
+            "text": "At 3am in production",
+            "isCorrect": false
+          },
+          {
+            "text": "By end users filing tickets",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Schema evolution is validated like API evolution: breakages surface before deploy, never after.",
+        "difficulty": 2,
+        "concept": "Schema Validation"
+      },
+      {
+        "id": "q8",
+        "type": "multiple-choice",
+        "question": "AVP latency spikes. What does your service do?",
+        "options": [
+          {
+            "text": "Timeout → deny plus alert, with cached verdicts bounded by a freshness SLO",
+            "isCorrect": true
+          },
+          {
+            "text": "Fail open until latency recovers",
+            "isCorrect": false
+          },
+          {
+            "text": "Retry forever holding the connection",
+            "isCorrect": false
+          },
+          {
+            "text": "Drop authorization from the path",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Managed PDPs share fate with your availability budget. Degradation policy is decided up front, not during the incident.",
+        "difficulty": 1,
+        "concept": "Verified Permissions IsAuthorized"
+      }
+    ]
+  },
+  "animation": {
+    "type": "cedar-sim",
+    "title": "Template + Forbid in Production",
+    "description": "Scoped forbid links over the photo scenarios",
+    "controls": [
+      "setCedarScenario"
+    ]
+  }
+}

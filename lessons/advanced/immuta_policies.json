@@ -1,0 +1,245 @@
+{
+  "id": "immuta_policies",
+  "title": "Immuta Data Policies",
+  "subtitle": "Subscription, masking, and row rules by tag",
+  "level": "advanced",
+  "number": 17,
+  "estimatedTime": 75,
+  "difficulty": 3,
+  "prerequisites": [
+    "conftest_ci"
+  ],
+  "content": "\n            <div class=\"lesson-section\">\n                <h3>🎫 Two Policy Kinds, Three Scopes (Verified vs 2026.1 Docs)</h3>\n                <ul>\n                    <li><strong>Subscription policies</strong> = table access (who may subscribe). <strong>Data policies</strong> = inside the table (row filters, column/cell masking).</li>\n                    <li><strong>Scopes:</strong> local (one table) → domain (domain's tables) → <strong>global</strong> (by tag across the estate — write once, e.g. <em>mask tag PII everywhere</em>).</li>\n                    <li><strong>Merge logic (no shortcuts):</strong> <em>row/data</em> policies AND together (OR only inside one policy). <em>Subscription ABAC</em> merge is per-policy: <code>Always Required</code> = AND, <code>Share Responsibility</code> = OR. Non-ABAC subscription conflicts (Anyone / Anyone-who-asks / Individual users) resolve by <strong>descending policy-name order</strong> with owner override — renaming a policy can flip enforcement. Guardrails, where they apply, are always required on top of any grant.</li>\n                </ul>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-22\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">Immuta global masking: tag-targeted, auditor exception</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-22')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-yaml\"># SHAPE-ILLUSTRATIVE — field names simplified; verify against the\n# Immuta 2026.1 v2 policy API / builder before pasting anywhere.\n# Last verified (semantics): 2026-09 vs Immuta policy API + data-policy docs.\nname: Finance PII masking\npolicyKey: data masking pii       # global data policy, applies by tag\ntype: data\nactions:\n  type: mask\n  maskType: hash                  # intelligent fallback: numerics -&gt; NULL\n  exceptions:                     # exclusionary condition\n    groups: [AUDIT]               # everyone masked EXCEPT auditors\ncircumstances:                    # tag targeting lives HERE, not in actions\n  - type: columnTags               # NOT literal column names: tags survive renames\n    columnTag: PII\nstaged: false</code></pre>\n                <div id=\"pbac-cb-22\" class=\"code-source\" style=\"display:none;\"># SHAPE-ILLUSTRATIVE — field names simplified; verify against the\n# Immuta 2026.1 v2 policy API / builder before pasting anywhere.\n# Last verified (semantics): 2026-09 vs Immuta policy API + data-policy docs.\nname: Finance PII masking\npolicyKey: data masking pii       # global data policy, applies by tag\ntype: data\nactions:\n  type: mask\n  maskType: hash                  # intelligent fallback: numerics -&gt; NULL\n  exceptions:                     # exclusionary condition\n    groups: [AUDIT]               # everyone masked EXCEPT auditors\ncircumstances:                    # tag targeting lives HERE, not in actions\n  - type: columnTags               # NOT literal column names: tags survive renames\n    columnTag: PII\nstaged: false</div>\n            </div>\n        \n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>🧠 Advanced DSL: Attributes Meeting Tags</h3>\n                <p>The reviewed Advanced-DSL pattern subscribes users whose <strong>attribute matches a tag on the data source</strong> — ABAC without per-table rules:</p>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-23\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">Immuta Advanced DSL: attribute-equals-tag subscription</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-23')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-yaml\"># Spelling confirmed 2026-09 vs Immuta Advanced-DSL guide\n# (advanced-dsl-policies: \"@hasTagsAsAttribute('Department', 'dataSource')\").\n# SHAPE-ILLUSTRATIVE around it — build in the UI/API and diff the export.\n# Performance note from the docs: thousands of @table-permutation rules\n# slow resolution — prefer tag/attribute patterns like this one.\nname: Department auto-subscribe\npolicyKey: subscription entitlements advanced boolean\ntype: subscription\nactions:\n  type: entitlements\n  advanced: \"@hasTagsAsAttribute('Department', 'dataSource')\"\n  # Department.Marketing users auto-subscribe to Marketing-tagged sources\n  automaticSubscription: true   # trade-off: thousands of auto-subscribed\n  allowDiscovery: false         # tables is a UX/cost decision, not free</code></pre>\n                <div id=\"pbac-cb-23\" class=\"code-source\" style=\"display:none;\"># Spelling confirmed 2026-09 vs Immuta Advanced-DSL guide\n# (advanced-dsl-policies: \"@hasTagsAsAttribute('Department', 'dataSource')\").\n# SHAPE-ILLUSTRATIVE around it — build in the UI/API and diff the export.\n# Performance note from the docs: thousands of @table-permutation rules\n# slow resolution — prefer tag/attribute patterns like this one.\nname: Department auto-subscribe\npolicyKey: subscription entitlements advanced boolean\ntype: subscription\nactions:\n  type: entitlements\n  advanced: \"@hasTagsAsAttribute('Department', 'dataSource')\"\n  # Department.Marketing users auto-subscribe to Marketing-tagged sources\n  automaticSubscription: true   # trade-off: thousands of auto-subscribed\n  allowDiscovery: false         # tables is a UX/cost decision, not free</div>\n            </div>\n        \n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>🔍 Critical Review Notes (Straight From the Docs)</h3>\n                <ul>\n                    <li><strong>Intelligent fallbacks:</strong> hashing a numeric column would corrupt its type — Immuta falls back to NULL automatically. Never hand-roll hash-on-numeric.</li>\n                    <li><strong>Lockout policy:</strong> a global row-filter referencing a column a table lacks (use <code>@columnTagged</code>, not hard-coded names) blocks ALL rows rather than leaking. Fail-closed at the data plane.</li>\n                    <li><strong>Deeper tag wins — with a tie-break:</strong> <code>PII.SSN</code> policy beats <code>PII</code> policy on the same column; at the <strong>same depth the earliest-authored policy wins</strong> — never rely on creation order, consolidate the policies instead.</li>\n                    <li><strong>Row filters AND together:</strong> two row policies both apply; to OR them, build one policy with an OR.</li>\n                </ul>\n            </div>\n            <div class=\"lesson-section\">\n                <h3>🔒 Lock-in / Bill / Exit (Read Before You Commit)</h3>\n                <ul>\n                    <li><strong>Lock-in (documented):</strong> SaaS control plane holds your tag taxonomy, policy definitions, and audit history; enforcement is per-compute integration (Snowflake/Databricks/etc.). Your governance metadata gravity wells here.</li>\n                    <li><strong>Bill (estimate — confirm current pricing):</strong> platform subscription plus per-compute/enforcement footprint; thousands of auto-subscribed tables and @table-permutation rules also cost resolution time and UX noise (see DSL note above).</li>\n                    <li><strong>Exit (documented pattern):</strong> tag taxonomy ports as column/table labels; masking/row logic rewrites to native Snowflake masking + row-access policies or Databricks Unity Catalog views/RLS. Budget a rewrite — there is no policy export that executes elsewhere.</li>\n                </ul>\n            </div>\n            \n            <div class=\"lesson-section\" style=\"background: rgba(139, 92, 246, 0.08); border-left: 4px solid var(--ai-purple); padding: 0.75rem 1rem; border-radius: 4px;\">\n                <strong>🎮 Try it in the Policy Lab →</strong> Switch viewer roles and watch PII masking vs auditor exception vs owner bypass. Use the controls under the canvas to switch scenarios and watch the verdict change.\n            </div>\n        \n        ",
+  "concepts": [
+    "Subscription vs Data Policies",
+    "Grant OR / Guardrail AND",
+    "Masking Fallbacks",
+    "Lockout Fail-Closed",
+    "Advanced Tag DSL"
+  ],
+  "quiz": {
+    "id": "immuta_quiz",
+    "title": "Immuta Policies Quiz",
+    "passingScore": 60,
+    "sampleSize": 5,
+    "timeLimit": 480,
+    "questions": [
+      {
+        "id": "q1",
+        "type": "multiple-choice",
+        "question": "What is the difference between subscription and data policies?",
+        "options": [
+          {
+            "text": "Subscription = table access; data = rows/columns/cells inside subscribed tables",
+            "isCorrect": true
+          },
+          {
+            "text": "They are identical synonyms",
+            "isCorrect": false
+          },
+          {
+            "text": "Subscription is for databases, data is for email",
+            "isCorrect": false
+          },
+          {
+            "text": "Data policies replace authentication",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Docs-verified split: subscription gates the table; data policies shape what subscribed users see inside it.",
+        "difficulty": 1,
+        "concept": "Subscription vs Data Policies"
+      },
+      {
+        "id": "q2",
+        "type": "multiple-choice",
+        "question": "Two global subscription grants (one Always Required, one Share Responsibility) and one guardrail apply. An admin renames the Share Responsibility policy from 'Zebra' to 'Alpha'. What must you check?",
+        "options": [
+          {
+            "text": "Whether non-ABAC conflicts now resolve differently — name order decides them, and the Always Required grant still ANDs with everything",
+            "isCorrect": true
+          },
+          {
+            "text": "Nothing — renames never affect enforcement",
+            "isCorrect": false
+          },
+          {
+            "text": "Only whether the guardrail still exists",
+            "isCorrect": false
+          },
+          {
+            "text": "Nobody — policies conflict so nobody gets in",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Real merge rules: subscription ABAC merge is per-policy (Always Required=AND, Share Responsibility=OR); non-ABAC conflicts resolve by descending name order with owner override — so renames CAN flip enforcement. Guardrails stay mandatory on top.",
+        "difficulty": 3,
+        "concept": "Grant OR / Guardrail AND"
+      },
+      {
+        "id": "q3",
+        "type": "multiple-choice",
+        "question": "A hash-masking policy hits a numeric salary column. What happens?",
+        "options": [
+          {
+            "text": "Intelligent fallback to NULL (hash would corrupt the numeric type)",
+            "isCorrect": true
+          },
+          {
+            "text": "The column is hashed into a string, breaking the schema",
+            "isCorrect": false
+          },
+          {
+            "text": "The policy is silently skipped, exposing raw salaries",
+            "isCorrect": false
+          },
+          {
+            "text": "The table is deleted",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Docs-verified fallback preserves type safety AND privacy level. Hand-rolled masking gets this wrong.",
+        "difficulty": 2,
+        "concept": "Masking Fallbacks"
+      },
+      {
+        "id": "q4",
+        "type": "multiple-choice",
+        "question": "A global row-filter references a column that one table lacks. Result on that table?",
+        "options": [
+          {
+            "text": "Lockout: zero rows returned until the policy is fixed (fail-closed, no leak)",
+            "isCorrect": true
+          },
+          {
+            "text": "All rows returned unfiltered",
+            "isCorrect": false
+          },
+          {
+            "text": "The table is dropped",
+            "isCorrect": false
+          },
+          {
+            "text": "Only admins see rows",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Lockout trades availability for confidentiality on mis-scoped globals — and is why @columnTagged beats hard-coded column names.",
+        "difficulty": 3,
+        "concept": "Lockout Fail-Closed"
+      },
+      {
+        "id": "q5",
+        "type": "multiple-choice",
+        "question": "What does @hasTagsAsAttribute('Department', 'dataSource') achieve?",
+        "options": [
+          {
+            "text": "Auto-subscribes users whose Department attribute matches the source's tag — ABAC without per-table rules",
+            "isCorrect": true
+          },
+          {
+            "text": "Deletes all department tags",
+            "isCorrect": false
+          },
+          {
+            "text": "Grants everyone admin",
+            "isCorrect": false
+          },
+          {
+            "text": "Disables all subscription policies",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "The reviewed Advanced-DSL pattern: attribute-meets-tag scales onboarding to zero-touch per-table work.",
+        "difficulty": 2,
+        "concept": "Advanced Tag DSL"
+      },
+      {
+        "id": "q6",
+        "type": "multiple-choice",
+        "question": "A user is subscribed to a table but sees zero rows. Which layer is responsible?",
+        "options": [
+          {
+            "text": "Data policy (row filter or lockout) — subscription gates the table, data policies shape rows",
+            "isCorrect": true
+          },
+          {
+            "text": "Authentication",
+            "isCorrect": false
+          },
+          {
+            "text": "DNS resolution",
+            "isCorrect": false
+          },
+          {
+            "text": "The UI theme",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Empty tables with valid subscriptions are data-policy behavior. Debug rows at the data layer, access at the subscription layer.",
+        "difficulty": 2,
+        "concept": "Subscription vs Data Policies"
+      },
+      {
+        "id": "q7",
+        "type": "multiple-choice",
+        "question": "Attribute Office values drift from tag values (NYC vs New York). Consequence?",
+        "options": [
+          {
+            "text": "Silent unsubscribes — attribute and tag vocabularies need joint governance",
+            "isCorrect": true
+          },
+          {
+            "text": "Auto-corrected by fuzzy matching",
+            "isCorrect": false
+          },
+          {
+            "text": "Nothing breaks",
+            "isCorrect": false
+          },
+          {
+            "text": "Everyone gets granted admin",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Attribute-meets-tag only works when both sides spell values identically. Vocabulary drift is silent access loss.",
+        "difficulty": 2,
+        "concept": "Advanced Tag DSL"
+      },
+      {
+        "id": "q8",
+        "type": "multiple-choice",
+        "question": "A staged global policy shows Pending for an hour. Meaning?",
+        "options": [
+          {
+            "text": "Still propagating to remote platforms — verify enforcement before announcing anything",
+            "isCorrect": true
+          },
+          {
+            "text": "It is broken and ignored",
+            "isCorrect": false
+          },
+          {
+            "text": "It was auto-approved",
+            "isCorrect": false
+          },
+          {
+            "text": "Pending means denied",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Policy push is eventually consistent across computes. Pending is a state to monitor, not an outcome to assume.",
+        "difficulty": 3,
+        "concept": "Lockout Fail-Closed"
+      }
+    ]
+  },
+  "animation": {
+    "type": "data-masking-sim",
+    "title": "Masking Policy Simulator",
+    "description": "Analyst NULL vs auditor hash vs owner bypass on a PII table",
+    "controls": [
+      "setMaskRole"
+    ]
+  }
+}

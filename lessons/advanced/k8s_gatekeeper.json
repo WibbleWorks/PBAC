@@ -1,0 +1,246 @@
+{
+  "id": "k8s_gatekeeper",
+  "title": "K8s Admission with Gatekeeper",
+  "subtitle": "ConstraintTemplates, Constraints, and deny",
+  "level": "advanced",
+  "number": 15,
+  "estimatedTime": 70,
+  "difficulty": 4,
+  "prerequisites": [
+    "conftest_ci"
+  ],
+  "content": "\n            <div class=\"lesson-section\">\n                <h3>🚪 Policy at the Cluster Door</h3>\n                <p><strong>Requires:</strong> basic Pod/YAML familiarity (reading <code>spec.containers</code>). No cluster needed — review the manifests statically.</p>\n                <p>Admission control is authorization for the orchestrator: every create/update to the API server passes Gatekeeper's webhook before etcd. Two objects: a <strong>ConstraintTemplate</strong> (the Rego rule, written once) and <strong>Constraints</strong> (instances with parameters and match scope, written per team). Verified against Gatekeeper docs and library patterns:</p>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-18\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">ConstraintTemplate: CRD + all-containers violation (verified pattern)</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-18')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-rego\"># Last verified: 2026-09 vs Gatekeeper docs (ConstraintTemplate + library)\napiVersion: templates.gatekeeper.sh/v1\nkind: ConstraintTemplate\nmetadata:\n  name: k8sallowedrepos\nspec:\n  # Mandatory: the CRD backing Constraint instances (apply fails without it)\n  crd:\n    spec:\n      names:\n        kind: K8sAllowedRepos\n      validation:\n        openAPIV3Schema:\n          type: object\n  targets:\n    - target: admission.k8s.gatekeeper.sh\n      rego: |\n        package k8sallowedrepos\n        # Library pattern: ALL container lists, or init/ephemeral bypass you\n        all_containers[c] { c := input.review.object.spec.containers[_] }\n        all_containers[c] { c := input.review.object.spec.initContainers[_] }\n        all_containers[c] { c := input.review.object.spec.ephemeralContainers[_] }\n        violation[{\"msg\": msg}] if {\n          not startswith(all_containers[_].image, \"corp-registry.example.com/\")\n          msg := sprintf(\"image %v is not from the allowlisted registry\", [all_containers[_].image])\n        }</code></pre>\n                <div id=\"pbac-cb-18\" class=\"code-source\" style=\"display:none;\"># Last verified: 2026-09 vs Gatekeeper docs (ConstraintTemplate + library)\napiVersion: templates.gatekeeper.sh/v1\nkind: ConstraintTemplate\nmetadata:\n  name: k8sallowedrepos\nspec:\n  # Mandatory: the CRD backing Constraint instances (apply fails without it)\n  crd:\n    spec:\n      names:\n        kind: K8sAllowedRepos\n      validation:\n        openAPIV3Schema:\n          type: object\n  targets:\n    - target: admission.k8s.gatekeeper.sh\n      rego: |\n        package k8sallowedrepos\n        # Library pattern: ALL container lists, or init/ephemeral bypass you\n        all_containers[c] { c := input.review.object.spec.containers[_] }\n        all_containers[c] { c := input.review.object.spec.initContainers[_] }\n        all_containers[c] { c := input.review.object.spec.ephemeralContainers[_] }\n        violation[{\"msg\": msg}] if {\n          not startswith(all_containers[_].image, \"corp-registry.example.com/\")\n          msg := sprintf(\"image %v is not from the allowlisted registry\", [all_containers[_].image])\n        }</div>\n            </div>\n        \n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-19\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">Constraint: scope + enforcement action</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-19')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-yaml\">apiVersion: constraints.gatekeeper.sh/v1beta1\nkind: K8sAllowedRepos\nmetadata:\n  name: prod-allowlist\nspec:\n  enforcementAction: deny        # deny | dryrun | warn\n  match:\n    kinds:\n      - apiGroups: [\"\"]\n        kinds: [\"Pod\"]\n    excludedNamespaces: [kube-system, gatekeeper-system]</code></pre>\n                <div id=\"pbac-cb-19\" class=\"code-source\" style=\"display:none;\">apiVersion: constraints.gatekeeper.sh/v1beta1\nkind: K8sAllowedRepos\nmetadata:\n  name: prod-allowlist\nspec:\n  enforcementAction: deny        # deny | dryrun | warn\n  match:\n    kinds:\n      - apiGroups: [\"\"]\n        kinds: [\"Pod\"]\n    excludedNamespaces: [kube-system, gatekeeper-system]</div>\n            </div>\n        \n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>🔍 Critical Review Notes</h3>\n                <ul>\n                    <li><strong>Containers AND initContainers AND ephemeralContainers:</strong> the library pattern checks all three. Guarding only <code>spec.containers</code> is a bypass with a YAML edit.</li>\n                    <li><strong>Start with <code>dryrun</code>:</strong> new constraints audit first (violations logged, nothing blocked), then flip to <code>deny</code>. Big-bang deny on a brownfield cluster is a self-inflicted outage.</li>\n                    <li><strong>exemptImages has no per-namespace scoping:</strong> docs-verified — different namespaces needing different exemptions require separate constraints, not one clever parameter.</li>\n                    <li><strong>Mutation exists (Assign/AssignImage):</strong> defaulting digests and labels is powerful — and a second write path to review with the same rigor as deny rules.</li>\n                </ul>\n            </div>\n            \n            <div class=\"lesson-section\" style=\"background: rgba(139, 92, 246, 0.08); border-left: 4px solid var(--ai-purple); padding: 0.75rem 1rem; border-radius: 4px;\">\n                <strong>🎮 Try it in the Policy Lab →</strong> Compare sidecar vs gateway vs admission: who decides, when, with what blast radius. Use the controls under the canvas to switch scenarios and watch the verdict change.\n            </div>\n        \n        ",
+  "concepts": [
+    "Admission Control",
+    "ConstraintTemplates",
+    "Constraint Scope",
+    "Dry-Run First",
+    "Container Coverage",
+    "Mutation Review"
+  ],
+  "quiz": {
+    "id": "gatekeeper_quiz",
+    "title": "Gatekeeper Quiz",
+    "passingScore": 60,
+    "sampleSize": 5,
+    "timeLimit": 420,
+    "questions": [
+      {
+        "id": "q1",
+        "type": "multiple-choice",
+        "question": "What is the split between ConstraintTemplate and Constraint?",
+        "options": [
+          {
+            "text": "Template holds the Rego rule once; Constraints instantiate it with parameters and match scope",
+            "isCorrect": true
+          },
+          {
+            "text": "They are synonyms",
+            "isCorrect": false
+          },
+          {
+            "text": "Templates enforce, Constraints merely document",
+            "isCorrect": false
+          },
+          {
+            "text": "Constraints hold Rego, Templates hold YAML",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Write the logic once, scope it per team. Templates are code; Constraints are configuration.",
+        "difficulty": 1,
+        "concept": "ConstraintTemplates"
+      },
+      {
+        "id": "q2",
+        "type": "multiple-choice",
+        "question": "A Pod runs a privileged initContainer while containers are clean. A containers-only image policy verdict?",
+        "options": [
+          {
+            "text": "Misses it — initContainers (and ephemeralContainers) need the same checks",
+            "isCorrect": true
+          },
+          {
+            "text": "Blocks it anyway",
+            "isCorrect": false
+          },
+          {
+            "text": "Init containers cannot be privileged",
+            "isCorrect": false
+          },
+          {
+            "text": "The Pod is rejected for other reasons",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "The library pattern enumerates all three container lists. Partial coverage is a documented bypass.",
+        "difficulty": 2,
+        "concept": "Container Coverage"
+      },
+      {
+        "id": "q3",
+        "type": "multiple-choice",
+        "question": "Rolling a new image-allowlist onto a brownfield cluster. First enforcementAction?",
+        "options": [
+          {
+            "text": "dryrun — audit violations first, flip to deny after triage",
+            "isCorrect": true
+          },
+          {
+            "text": "deny immediately everywhere",
+            "isCorrect": false
+          },
+          {
+            "text": "Delete all workloads first",
+            "isCorrect": false
+          },
+          {
+            "text": "Disable the webhook",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Unknown estate plus instant deny equals outage. Dry-run measures the blast radius before you create it.",
+        "difficulty": 1,
+        "concept": "Dry-Run First"
+      },
+      {
+        "id": "q4",
+        "type": "multiple-choice",
+        "question": "Two namespaces need different image exemptions. Approach?",
+        "options": [
+          {
+            "text": "Separate Constraints — exemptImages has no per-namespace scoping",
+            "isCorrect": true
+          },
+          {
+            "text": "One Constraint with a clever exemptImages map",
+            "isCorrect": false
+          },
+          {
+            "text": "Exempt both namespaces entirely",
+            "isCorrect": false
+          },
+          {
+            "text": "Exemptions are impossible",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Docs-verified limitation. Fighting it with custom Rego forks you from the maintained library.",
+        "difficulty": 2,
+        "concept": "Constraint Scope"
+      },
+      {
+        "id": "q5",
+        "type": "multiple-choice",
+        "question": "Where does admission control sit in the request path?",
+        "options": [
+          {
+            "text": "Between API-server receipt and etcd persist — every create/update passes the webhook",
+            "isCorrect": true
+          },
+          {
+            "text": "Inside each container at runtime",
+            "isCorrect": false
+          },
+          {
+            "text": "In the CI pipeline only",
+            "isCorrect": false
+          },
+          {
+            "text": "After the Pod is already running",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Admission is deploy-time authorization for the orchestrator. Runtime needs its own controls.",
+        "difficulty": 1,
+        "concept": "Admission Control"
+      },
+      {
+        "id": "q6",
+        "type": "multiple-choice",
+        "question": "AssignImage pins nginx to a digest via mutation. Review posture?",
+        "options": [
+          {
+            "text": "Same rigor as deny rules — mutation is a second write path into every Pod",
+            "isCorrect": true
+          },
+          {
+            "text": "Mutations are safe by definition",
+            "isCorrect": false
+          },
+          {
+            "text": "No review needed for defaults",
+            "isCorrect": false
+          },
+          {
+            "text": "Mutations cannot affect security",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Anything that rewrites workloads is privileged. Mutation policies get tests, review, and dry-run too.",
+        "difficulty": 2,
+        "concept": "Mutation Review"
+      },
+      {
+        "id": "q7",
+        "type": "multiple-choice",
+        "question": "excludedNamespaces lists kube-system and gatekeeper-system. Why?",
+        "options": [
+          {
+            "text": "So policy infrastructure itself is never blocked by its own rules",
+            "isCorrect": true
+          },
+          {
+            "text": "Those namespaces are insecure by design",
+            "isCorrect": false
+          },
+          {
+            "text": "To speed up the webhook",
+            "isCorrect": false
+          },
+          {
+            "text": "Exclusions are mandatory syntax",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Self-lockout is the classic admission failure. The controller that enforces policy must stay schedulable.",
+        "difficulty": 2,
+        "concept": "Constraint Scope"
+      },
+      {
+        "id": "q8",
+        "type": "multiple-choice",
+        "question": "A workload violates a dryrun constraint. What happens to the deploy?",
+        "options": [
+          {
+            "text": "It proceeds; the violation is logged for triage",
+            "isCorrect": true
+          },
+          {
+            "text": "It is blocked",
+            "isCorrect": false
+          },
+          {
+            "text": "The cluster pauses",
+            "isCorrect": false
+          },
+          {
+            "text": "The violation is deleted",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Dry-run is measurement mode. The log it produces is the evidence base for flipping to deny.",
+        "difficulty": 1,
+        "concept": "Dry-Run First"
+      }
+    ]
+  },
+  "animation": {
+    "type": "auth-patterns",
+    "title": "Admission vs Sidecar vs Gateway",
+    "description": "Deploy-time vs request-time enforcement compared",
+    "controls": [
+      "setAuthPattern"
+    ]
+  }
+}

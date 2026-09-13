@@ -1,0 +1,245 @@
+{
+  "id": "openfga_foundations",
+  "title": "OpenFGA Foundations",
+  "subtitle": "Zanzibar tuples, DSL models, and check",
+  "level": "intermediate",
+  "number": 9,
+  "estimatedTime": 60,
+  "difficulty": 3,
+  "prerequisites": [
+    "cedar_foundations"
+  ],
+  "content": "\n            <div class=\"lesson-section\">\n                <h3>🕸️ Tuples Are the Policy</h3>\n                <p>OpenFGA stores <strong>relationship tuples</strong> — <code>(user, relation, object)</code> — and a <strong>model</strong> defines which relations exist and how they imply each other. Authorization = graph reachability. The canonical docs model (verified Sept 2026):</p>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-8\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">OpenFGA DSL: viewer defined via editor (concentric) + team indirection</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-8')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-openfga\"># Last verified: 2026-09 vs openfga.dev direct-relationships\nmodel\n  schema 1.1\n\ntype user\n\ntype team\n  relations\n    define member: [user]\n\ntype document\n  relations\n    define viewer: [user, team#member] or editor\n    define editor: [user, team#member]\n\n# Tuples (written at share-time):\n# anne editor document:Q3        -&gt; anne can view via concentric inherit\n# team:eng member cara           -&gt; cara in the team\n# team:eng editor document:Q3    -&gt; whole team edits (and hence views)</code></pre>\n                <div id=\"pbac-cb-8\" class=\"code-source\" style=\"display:none;\"># Last verified: 2026-09 vs openfga.dev direct-relationships\nmodel\n  schema 1.1\n\ntype user\n\ntype team\n  relations\n    define member: [user]\n\ntype document\n  relations\n    define viewer: [user, team#member] or editor\n    define editor: [user, team#member]\n\n# Tuples (written at share-time):\n# anne editor document:Q3        -&gt; anne can view via concentric inherit\n# team:eng member cara           -&gt; cara in the team\n# team:eng editor document:Q3    -&gt; whole team edits (and hence views)</div>\n            </div>\n        \n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>🔍 check() Reads the Graph</h3>\n                <p><code>check(user:anne, viewer, document:Q3)</code> walks: direct viewer tuple? team#member path? editor path? Any path → allow. No path → deny. Concentric <code>viewer: ... or editor</code> means editors never need separate viewer tuples — the model bakes the implication in.</p>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-9\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">Check evaluation as path-finding</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-9')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-text\"># check(user:anne, viewer, document:Q3)  -&gt; true\n#   path: anne --editor--&gt; document:Q3, editor =&gt; viewer\n# check(user:zoe, viewer, document:Q3)   -&gt; false (no path, default deny)\n# check(user:cara, viewer, document:Q3)  -&gt; true\n#   path: cara --member--&gt; team:eng --editor--&gt; document:Q3 =&gt; viewer</code></pre>\n                <div id=\"pbac-cb-9\" class=\"code-source\" style=\"display:none;\"># check(user:anne, viewer, document:Q3)  -&gt; true\n#   path: anne --editor--&gt; document:Q3, editor =&gt; viewer\n# check(user:zoe, viewer, document:Q3)   -&gt; false (no path, default deny)\n# check(user:cara, viewer, document:Q3)  -&gt; true\n#   path: cara --member--&gt; team:eng --editor--&gt; document:Q3 =&gt; viewer</div>\n            </div>\n        \n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>🔍 Critical Review Notes</h3>\n                <ul>\n                    <li><strong><code>user:*</code> (public wildcard) exists</strong> in the DSL for genuinely public objects — but every <code>*</code> in a model deserves a review comment explaining why that object class is public.</li>\n                    <li><strong>Contextual tuples</strong> (time windows, IP ranges) are evaluated at check-time and are <em>not</em> supported in the playground — integration-test them against a real server (Lesson 14).</li>\n                    <li><strong>Model versioning matters:</strong> changing <code>define</code> lines changes every past tuple's meaning. Version models like code and migrate tuples deliberately.</li>\n                </ul>\n            </div>\n            \n            <div class=\"lesson-section\" style=\"background: rgba(139, 92, 246, 0.08); border-left: 4px solid var(--ai-purple); padding: 0.75rem 1rem; border-radius: 4px;\">\n                <strong>🎮 Try it in the Policy Lab →</strong> Run the three check scenarios: direct editor, stranger, and team-transitive access. Use the controls under the canvas to switch scenarios and watch the verdict change.\n            </div>\n        \n        ",
+  "concepts": [
+    "Relationship Tuples",
+    "OpenFGA DSL Model",
+    "Concentric Relations",
+    "Check as Path-Finding",
+    "Default Deny in ReBAC"
+  ],
+  "quiz": {
+    "id": "fga_found_quiz",
+    "title": "OpenFGA Foundations Quiz",
+    "passingScore": 60,
+    "sampleSize": 5,
+    "timeLimit": 420,
+    "questions": [
+      {
+        "id": "q1",
+        "type": "multiple-choice",
+        "question": "What is stored in OpenFGA as the source of truth for access?",
+        "options": [
+          {
+            "text": "Relationship tuples (user, relation, object) interpreted through a versioned model",
+            "isCorrect": true
+          },
+          {
+            "text": "Passwords and password hashes",
+            "isCorrect": false
+          },
+          {
+            "text": "JWT signing keys",
+            "isCorrect": false
+          },
+          {
+            "text": "Signed JWTs (authentication artifacts, not relationship facts)",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Zanzibar's insight: access = graph reachability over stored relationships. The model defines relation meanings; tuples are the facts.",
+        "difficulty": 1,
+        "concept": "Relationship Tuples"
+      },
+      {
+        "id": "q2",
+        "type": "multiple-choice",
+        "question": "Given define viewer: [user] or editor, anne holds only an editor tuple on doc:Q3. check(anne, viewer, doc:Q3)?",
+        "options": [
+          {
+            "text": "true — editor implies viewer (concentric relation)",
+            "isCorrect": true
+          },
+          {
+            "text": "false — she needs a separate viewer tuple",
+            "isCorrect": false
+          },
+          {
+            "text": "error — models cannot reference other relations",
+            "isCorrect": false
+          },
+          {
+            "text": "true — everyone is a viewer",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Concentric inheritance is the documented pattern: define viewer as editor (plus direct grants) so one tuple serves both.",
+        "difficulty": 2,
+        "concept": "Concentric Relations"
+      },
+      {
+        "id": "q3",
+        "type": "multiple-choice",
+        "question": "cara is member of team:eng; team:eng is editor of doc:Q3; viewer includes team#member-or-editor paths. check(cara, viewer, doc:Q3)?",
+        "options": [
+          {
+            "text": "true — transitive path cara→team→doc resolves",
+            "isCorrect": true
+          },
+          {
+            "text": "false — only direct tuples count",
+            "isCorrect": false
+          },
+          {
+            "text": "false — teams cannot hold relations",
+            "isCorrect": false
+          },
+          {
+            "text": "error — too many hops",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "team#member indirection resolves transitively — and check() is path-finding: any valid path from subject to object through allowed relations is an allow.",
+        "difficulty": 2,
+        "concept": "Check as Path-Finding"
+      },
+      {
+        "id": "q4",
+        "type": "multiple-choice",
+        "question": "No tuple path exists between subject and object. Verdict?",
+        "options": [
+          {
+            "text": "Deny — ReBAC default-deny (no path, no access)",
+            "isCorrect": true
+          },
+          {
+            "text": "Allow — unknown users get viewer",
+            "isCorrect": false
+          },
+          {
+            "text": "Ask the user to retry",
+            "isCorrect": false
+          },
+          {
+            "text": "Grant admin to be safe",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Same invariant as every model in this course: unmatched → deny. ReBAC just spells 'matched' as 'a path exists'.",
+        "difficulty": 1,
+        "concept": "Default Deny in ReBAC"
+      },
+      {
+        "id": "q5",
+        "type": "multiple-choice",
+        "question": "You change define viewer to remove the editor clause. What must you consider?",
+        "options": [
+          {
+            "text": "Every existing editor tuple silently loses viewer access — model edits are migrations",
+            "isCorrect": true
+          },
+          {
+            "text": "Nothing — models are cosmetic",
+            "isCorrect": false
+          },
+          {
+            "text": "Only new documents are affected",
+            "isCorrect": false
+          },
+          {
+            "text": "Tuples auto-update to match",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "The model gives meaning to all stored tuples. Editing defines retroactively reinterprets history — version and migrate deliberately.",
+        "difficulty": 3,
+        "concept": "OpenFGA DSL Model"
+      },
+      {
+        "id": "q6",
+        "type": "multiple-choice",
+        "question": "You add define owner: [user] to document but no rule references owner. Effect?",
+        "options": [
+          {
+            "text": "None until referenced — the model defines vocabulary; tuples and paths give it meaning",
+            "isCorrect": true
+          },
+          {
+            "text": "All owners instantly become admins",
+            "isCorrect": false
+          },
+          {
+            "text": "All checks start failing",
+            "isCorrect": false
+          },
+          {
+            "text": "Tuples auto-create for every owner",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Unused definitions are inert. Model edits only matter where relations are referenced — which is why edits need review.",
+        "difficulty": 2,
+        "concept": "OpenFGA DSL Model"
+      },
+      {
+        "id": "q7",
+        "type": "multiple-choice",
+        "question": "check() traverses six hops through nested teams. Operational concern?",
+        "options": [
+          {
+            "text": "Latency and depth limits — flatten hot paths, cache carefully, test p99",
+            "isCorrect": true
+          },
+          {
+            "text": "None — graph traversal is free",
+            "isCorrect": false
+          },
+          {
+            "text": "More tuples always make it faster",
+            "isCorrect": false
+          },
+          {
+            "text": "Disable authorization for deep graphs",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Reachability cost grows with depth. Production graphs need the same latency budgeting as any hot path.",
+        "difficulty": 3,
+        "concept": "Check as Path-Finding"
+      },
+      {
+        "id": "q8",
+        "type": "multiple-choice",
+        "question": "The team is deleted in the IdP but its OpenFGA tuples were never removed. Access via those paths?",
+        "options": [
+          {
+            "text": "Allow until the tuples are deleted — stale tuples are lingering grants; reconcile via sync/outbox",
+            "isCorrect": true
+          },
+          {
+            "text": "Deny automatically once the IdP object is gone",
+            "isCorrect": false
+          },
+          {
+            "text": "Auto-recreate the deleted team",
+            "isCorrect": false
+          },
+          {
+            "text": "Grant admin to affected users",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Tuples are independent stored facts — deleting the IdP object does not delete them. Stale tuples resolve and allow: tuple hygiene (sync job/outbox) is part of offboarding.",
+        "difficulty": 1,
+        "concept": "Relationship Tuples"
+      }
+    ]
+  },
+  "animation": {
+    "type": "openfga-graph",
+    "title": "Relationship Graph Checks",
+    "description": "Direct, stranger, and team-transitive check() paths",
+    "controls": [
+      "setFgaScenario"
+    ]
+  }
+}

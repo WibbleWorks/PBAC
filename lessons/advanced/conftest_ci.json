@@ -1,0 +1,247 @@
+{
+  "id": "conftest_ci",
+  "title": "Policy in CI with Conftest",
+  "subtitle": "deny_ rules, exceptions, shift-left gates",
+  "level": "advanced",
+  "number": 16,
+  "estimatedTime": 60,
+  "difficulty": 2,
+  "prerequisites": [
+    "openfga_production"
+  ],
+  "content": "\n            <div class=\"lesson-section\">\n                <h3>⬅️ Shift-Left: Fail the PR, Not the Deploy</h3>\n                <p>Gatekeeper guards the cluster; <strong>Conftest</strong> guards the repo. Same Rego language, earlier in the lifecycle: Dockerfiles, Kubernetes manifests, Terraform, and configs get tested on every pull request. Verified against the Conftest README and docs:</p>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-20\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">Conftest: deny regroup over manifests, CLI-verbatim output</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-20')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-rego\"># Last verified: 2026-09 vs conftest README (package main, deny regroup)\npackage main\n\ndeny contains msg if {\n  input.kind == \"Deployment\"\n  not input.spec.template.spec.securityContext.runAsNonRoot\n\n  msg := \"Containers must not run as root\"\n}\n\ndeny contains msg if {\n  input.kind == \"Deployment\"\n  not input.spec.selector.matchLabels.app\n\n  msg := \"Containers must provide app label for pod selectors\"\n}\n\n# $ conftest test deployment.yaml\n# FAIL - deployment.yaml - Containers must not run as root\n# FAIL - deployment.yaml - Containers must provide app label for pod selectors\n# 2 tests, 0 passed, 0 warnings, 2 failures, 0 exceptions</code></pre>\n                <div id=\"pbac-cb-20\" class=\"code-source\" style=\"display:none;\"># Last verified: 2026-09 vs conftest README (package main, deny regroup)\npackage main\n\ndeny contains msg if {\n  input.kind == \"Deployment\"\n  not input.spec.template.spec.securityContext.runAsNonRoot\n\n  msg := \"Containers must not run as root\"\n}\n\ndeny contains msg if {\n  input.kind == \"Deployment\"\n  not input.spec.selector.matchLabels.app\n\n  msg := \"Containers must provide app label for pod selectors\"\n}\n\n# $ conftest test deployment.yaml\n# FAIL - deployment.yaml - Containers must not run as root\n# FAIL - deployment.yaml - Containers must provide app label for pod selectors\n# 2 tests, 0 passed, 0 warnings, 2 failures, 0 exceptions</div>\n            </div>\n        \n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>🚪 Exceptions Are Policy Too</h3>\n                <p>Blanket rules need escape hatches — but the hatch is itself versioned policy, not a Slack approval. Docs-verified exception pattern plus the <code>deny_</code>-prefix convention for unit-testable rules:</p>\n                \n            <div class=\"code-example\" style=\"margin: 1rem 0; border-left: 4px solid var(--ai-purple);\" data-code-id=\"pbac-cb-21\">\n                <div style=\"display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0.5rem; background: var(--surface-light); border-radius: 4px 4px 0 0;\">\n                    <span style=\"font-size: 0.8rem; color: var(--text-muted);\">Conftest exceptions + testable deny_ rules</span>\n                    <button class=\"btn-small\" onclick=\"pbacCopy('pbac-cb-21')\" aria-label=\"Copy code\" style=\"padding: 0.15rem 0.4rem; font-size: 0.75rem; background: var(--surface-color); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;\">📋 Copy</button>\n                </div>\n                <pre style=\"margin: 0; padding: 1rem; background: var(--code-bg); border-radius: 0 4px 4px 0; overflow-x: auto; font-size: 0.85rem;\" tabindex=\"0\" role=\"region\" aria-label=\"Code block\"><code class=\"language-rego\"># Last verified: 2026-09 vs conftest docs/exceptions + docs/index (deny_ prefix)\npackage main\n\ndeny_run_as_root contains msg if {\n  input.kind == \"Deployment\"\n  not input.spec.template.spec.securityContext.runAsNonRoot\n  msg := \"Containers must not run as root\"\n}\n\nexception contains rules if {\n  input.kind == \"Deployment\"\n  input.metadata.name == \"can-run-as-root\"\n  rules := [\"run_as_root\"]\n}\n# deny_ prefix: target one rule in tests instead of matching message strings.\n# The aggregation the prefix requires (per conftest testing docs):\nno_violations if { count(deny_run_as_root) == 0 }\n# Note: pod-level runAsNonRoot only — per-container securityContext settings\n# need an additional input.spec.template.spec.containers[_].securityContext\n# check, or per-container violations slip through.</code></pre>\n                <div id=\"pbac-cb-21\" class=\"code-source\" style=\"display:none;\"># Last verified: 2026-09 vs conftest docs/exceptions + docs/index (deny_ prefix)\npackage main\n\ndeny_run_as_root contains msg if {\n  input.kind == \"Deployment\"\n  not input.spec.template.spec.securityContext.runAsNonRoot\n  msg := \"Containers must not run as root\"\n}\n\nexception contains rules if {\n  input.kind == \"Deployment\"\n  input.metadata.name == \"can-run-as-root\"\n  rules := [\"run_as_root\"]\n}\n# deny_ prefix: target one rule in tests instead of matching message strings.\n# The aggregation the prefix requires (per conftest testing docs):\nno_violations if { count(deny_run_as_root) == 0 }\n# Note: pod-level runAsNonRoot only — per-container securityContext settings\n# need an additional input.spec.template.spec.containers[_].securityContext\n# check, or per-container violations slip through.</div>\n            </div>\n        \n            </div>\n\n            <div class=\"lesson-section\">\n                <h3>🔍 Critical Review Notes</h3>\n                <ul>\n                    <li><strong>CI complements admission, never replaces it:</strong> repo-time checks pass on what is committed; admission checks what is actually applied (kubectl --validate=false, GitOps drift, emergency edits all bypass CI).</li>\n                    <li><strong>Exceptions expire or they accumulate:</strong> every exception rule gets an owner and an expiry; review the exception list with the same cadence as the deny list.</li>\n                    <li><strong>Test the tests:</strong> <code>deny_</code> prefixes plus per-rule unit tests keep suites readable past a dozen rules — message-matching monoliths rot.</li>\n                </ul>\n            </div>\n            \n            <div class=\"lesson-section\" style=\"background: rgba(139, 92, 246, 0.08); border-left: 4px solid var(--ai-purple); padding: 0.75rem 1rem; border-radius: 4px;\">\n                <strong>🎮 Try it in the Policy Lab →</strong> Toggle a manifest between compliant and violating; watch which rule fires. Use the controls under the canvas to switch scenarios and watch the verdict change.\n            </div>\n        \n        ",
+  "concepts": [
+    "Shift-Left Gates",
+    "Deny Regroup",
+    "Versioned Exceptions",
+    "Testable Rules",
+    "CI Plus Admission",
+    "Exception Expiry"
+  ],
+  "quiz": {
+    "id": "conftest_quiz",
+    "title": "Conftest CI Quiz",
+    "passingScore": 60,
+    "sampleSize": 5,
+    "timeLimit": 420,
+    "questions": [
+      {
+        "id": "q1",
+        "type": "multiple-choice",
+        "question": "A Deployment runs as root and lacks the app label. conftest test output?",
+        "options": [
+          {
+            "text": "Two FAIL lines, one per violated deny rule, plus the summary count",
+            "isCorrect": true
+          },
+          {
+            "text": "Silent pass with exit 0",
+            "isCorrect": false
+          },
+          {
+            "text": "The manifest is auto-fixed",
+            "isCorrect": false
+          },
+          {
+            "text": "Only the first violation is reported",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "CLI-verbatim behavior: every violated message prints; the summary counts tests, passes, warnings, failures, exceptions.",
+        "difficulty": 1,
+        "concept": "Deny Regroup"
+      },
+      {
+        "id": "q2",
+        "type": "multiple-choice",
+        "question": "Why does Conftest belong in CI if Gatekeeper already guards the cluster?",
+        "options": [
+          {
+            "text": "CI checks what is committed; admission checks what is applied — drift and emergency edits bypass CI",
+            "isCorrect": true
+          },
+          {
+            "text": "It doesn't — admission makes CI redundant",
+            "isCorrect": false
+          },
+          {
+            "text": "CI is faster than webhooks",
+            "isCorrect": false
+          },
+          {
+            "text": "Gatekeeper cannot read YAML",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Defense in depth across lifecycle stages: shift-left for speed, admission for ground truth.",
+        "difficulty": 2,
+        "concept": "CI Plus Admission"
+      },
+      {
+        "id": "q3",
+        "type": "multiple-choice",
+        "question": "The can-run-as-root Deployment needs its exemption. Correct form?",
+        "options": [
+          {
+            "text": "A versioned exception rule naming the workload and the exempted rule ids",
+            "isCorrect": true
+          },
+          {
+            "text": "A Slack message to the team",
+            "isCorrect": false
+          },
+          {
+            "text": "Deleting the deny rule",
+            "isCorrect": false
+          },
+          {
+            "text": "Renaming the workload randomly",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Exceptions are policy: named, scoped, reviewable — never tribal knowledge.",
+        "difficulty": 1,
+        "concept": "Versioned Exceptions"
+      },
+      {
+        "id": "q4",
+        "type": "multiple-choice",
+        "question": "What does the deny_ prefix convention buy you?",
+        "options": [
+          {
+            "text": "Per-rule unit tests instead of message-string matching, at the cost of one aggregation rule",
+            "isCorrect": true
+          },
+          {
+            "text": "Faster Rego evaluation",
+            "isCorrect": false
+          },
+          {
+            "text": "Automatic exception generation",
+            "isCorrect": false
+          },
+          {
+            "text": "Nothing — pure style",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Docs-verified trade: target rules directly in tests; maintain no_violations aggregation. Suite readability past a dozen rules.",
+        "difficulty": 2,
+        "concept": "Testable Rules"
+      },
+      {
+        "id": "q5",
+        "type": "multiple-choice",
+        "question": "Which files does conftest test beyond Kubernetes manifests?",
+        "options": [
+          {
+            "text": "Dockerfiles, Terraform, and structured configs — any data the Rego can read",
+            "isCorrect": true
+          },
+          {
+            "text": "Only Go source files",
+            "isCorrect": false
+          },
+          {
+            "text": "Only PNG images",
+            "isCorrect": false
+          },
+          {
+            "text": "Nothing else",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Conftest tests configuration data broadly. Policy-as-code covers the whole repo, not just the cluster.",
+        "difficulty": 1,
+        "concept": "Shift-Left Gates"
+      },
+      {
+        "id": "q6",
+        "type": "multiple-choice",
+        "question": "An exception list grows to forty entries with no owners. Diagnosis?",
+        "options": [
+          {
+            "text": "Exception debt — every entry needs an owner and expiry, reviewed with the deny list",
+            "isCorrect": true
+          },
+          {
+            "text": "Healthy policy evolution",
+            "isCorrect": false
+          },
+          {
+            "text": "A sign to delete all deny rules",
+            "isCorrect": false
+          },
+          {
+            "text": "Nothing — exceptions don't matter",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Unexpiring exceptions are permits wearing a costume. Govern the hatch with the same cadence as the wall.",
+        "difficulty": 2,
+        "concept": "Exception Expiry"
+      },
+      {
+        "id": "q7",
+        "type": "multiple-choice",
+        "question": "Emergency kubectl edit bypasses CI and violates policy. What catches it?",
+        "options": [
+          {
+            "text": "Admission control (Gatekeeper) — the cluster-door check CI cannot replace",
+            "isCorrect": true
+          },
+          {
+            "text": "Nothing — emergencies are exempt from policy",
+            "isCorrect": false
+          },
+          {
+            "text": "The next CI run retroactively",
+            "isCorrect": false
+          },
+          {
+            "text": "The developer's memory",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "This is the CI-plus-admission argument in one incident: commit-time gates never see out-of-band writes.",
+        "difficulty": 2,
+        "concept": "CI Plus Admission"
+      },
+      {
+        "id": "q8",
+        "type": "multiple-choice",
+        "question": "A monolithic deny rule's tests match on message strings and break on every reword. Fix?",
+        "options": [
+          {
+            "text": "Split into deny_-prefixed rules with per-rule tests",
+            "isCorrect": true
+          },
+          {
+            "text": "Freeze all message wording forever",
+            "isCorrect": false
+          },
+          {
+            "text": "Delete the tests",
+            "isCorrect": false
+          },
+          {
+            "text": "Match on line numbers instead",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Test structure should follow rule structure. Prefixes make rules addressable; strings make tests brittle.",
+        "difficulty": 2,
+        "concept": "Testable Rules"
+      }
+    ]
+  },
+  "animation": {
+    "type": "default-deny-sim",
+    "title": "Compliant vs Violating Manifests",
+    "description": "Flip fields and watch deny rules fire per rule",
+    "controls": [
+      "setDenyScenario",
+      "toggleDenyRules"
+    ]
+  }
+}
