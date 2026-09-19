@@ -250,6 +250,7 @@ class PBACAnimations {
         ];
         ctx.fillStyle = '#94a3b8'; ctx.font = '12px system-ui';
         this.wrap(ctx, notes[this.flowStep], 12, 162, W - 24, 18);
+        this.announce('Request lifecycle step ' + (this.flowStep + 1) + ' of 7: ' + this.flowSteps[this.flowStep] + '. ' + notes[this.flowStep]);
     }
 
     stepActive(i) {
@@ -274,6 +275,7 @@ class PBACAnimations {
         });
         ctx.fillStyle = '#64748b'; ctx.font = '11px system-ui';
         ctx.fillText('Switch the model above: same request, different decision logic.', 12, H - 16);
+        this.announce('Model comparison, mode ' + this.compareMode + ': ' + m.title + '. ' + m.rows[3]);
     }
 
     drawDenySim(ctx, W, H) {
@@ -293,6 +295,7 @@ class PBACAnimations {
         ctx.fillText('verdict: ' + verdict, 12, 110);
         ctx.fillStyle = '#c5d4e3'; ctx.font = '12px system-ui';
         this.wrap(ctx, reason, 12, 134, W - 24, 18);
+        this.announce('Default-deny simulator: ' + s.label + ' — verdict ' + verdict + '. ' + reason);
         ctx.fillStyle = '#64748b'; ctx.font = '11px system-ui';
         ctx.fillText('Toggle default-deny to see why fail-open is a critical finding.', 12, H - 16);
     }
@@ -317,6 +320,7 @@ class PBACAnimations {
         ctx.fillText('result: ' + (allow ? 'true' : 'false'), 12, 160);
         ctx.fillStyle = '#94a3b8'; ctx.font = '12px system-ui';
         this.wrap(ctx, allow ? which : 'No rule matched -> default deny. Note: api-read is GET-only, so eve PUTs deny.', 12, 182, W - 24, 18);
+        this.announce('Rego simulator: ' + s.label + ' — result ' + (allow ? 'true' : 'false') + '. ' + (allow ? which : 'No rule matched, default deny.'));
         ctx.fillStyle = '#64748b'; ctx.font = '11px system-ui';
         ctx.fillText('Mirrors mouton0815/authorization-with-OPA team pattern.', 12, H - 16);
     }
@@ -342,6 +346,7 @@ class PBACAnimations {
         ctx.fillText('decision: ' + decision, 12, 140);
         ctx.fillStyle = '#94a3b8'; ctx.font = '12px system-ui';
         this.wrap(ctx, which, 12, 162, W - 24, 18);
+        this.announce('Cedar simulator: ' + s.label + ' — decision ' + decision + '. ' + which);
         ctx.fillStyle = '#64748b'; ctx.font = '11px system-ui';
         ctx.fillText('Cedar: forbid always overrides permit; Deny unless a permit matches.', 12, H - 16);
     }
@@ -356,6 +361,7 @@ class PBACAnimations {
         ctx.fillText('check(' + s.check + ')', 12, 70 + s.tuples.length * 18 + 12);
         ctx.fillStyle = s.result ? '#22c55e' : '#ef4444'; ctx.font = '700 20px system-ui';
         ctx.fillText(s.result ? 'ALLOW (relation holds)' : 'DENY (no path)', 12, 70 + s.tuples.length * 18 + 44);
+        this.announce('OpenFGA check ' + s.check + ' — ' + (s.result ? 'ALLOW, relation holds.' : 'DENY, no path.'));
         ctx.fillStyle = '#64748b'; ctx.font = '11px system-ui';
         ctx.fillText('OpenFGA: viewer defined as editor => concentric inherit.', 12, H - 16);
     }
@@ -378,6 +384,7 @@ class PBACAnimations {
         });
         ctx.fillStyle = '#94a3b8'; ctx.font = '12px system-ui';
         this.wrap(ctx, this.maskRole === 'owner' ? 'Owner bypass: raw values (break-glass audited).' : this.maskRole === 'auditor' ? 'Exception group AUDIT: deterministic hash instead of NULL.' : 'Default: PII columns nulled; numeric fallback NULL (never hash->string).', 12, 150, W - 24, 18);
+        this.announce('Masking simulator, viewer role ' + this.maskRole + ': ' + (this.maskRole === 'owner' ? 'raw values.' : this.maskRole === 'auditor' ? 'hash of last 4, sim shorthand.' : 'PII nulled.'));
         ctx.fillStyle = '#64748b'; ctx.font = '11px system-ui';
         ctx.fillText('Immuta pattern: global tag policy + exclusionary exception.', 12, H - 16);
     }
@@ -394,6 +401,7 @@ class PBACAnimations {
         p.forEach((r, i) => { ctx.fillStyle = '#94a3b8'; ctx.fillText(`${i + 1}. ${r}`, 16, 76 + i * 24); });
         ctx.fillStyle = '#64748b'; ctx.font = '11px system-ui';
         ctx.fillText('All patterns: authenticate first, authorize second, fail closed.', 12, H - 16);
+        this.announce('Enforcement pattern ' + this.authPattern + ': ' + p.join('; '));
     }
 
     drawFallback(ctx, W, H) {
@@ -410,6 +418,13 @@ class PBACAnimations {
             else line = t;
         }
         if (line) ctx.fillText(line, x, yy);
+    }
+
+    announce(text) {
+        try {
+            var s = document.getElementById('policylab-status');
+            if (s) s.textContent = text;
+        } catch (e) { /* non-DOM env (smoke) — ignore */ }
     }
 }
 

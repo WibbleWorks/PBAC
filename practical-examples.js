@@ -69,7 +69,7 @@ if (typeof COURSE_DATA === 'undefined') {
         cedar: {
             name: 'Cedar / Amazon Verified Permissions',
             description: 'App-focused language + managed PDP',
-            installation: 'cargo install cedar-policy-cli  # or: npm install -g @cedar-policy/cli',
+            installation: 'cargo install cedar-policy-cli --version 4.11.2  # or: npm install -g @cedar-policy/cli@4.11.2 (verified 2026-09)',
             helloWorld: 'cedar authorize --policies policies.cedar --entities entities.json --request request.json'
         },
         openfga: {
@@ -224,7 +224,7 @@ opa eval -i input.json -d request.rego 'data.policies.allow'
                         { text: "opa eval -i input.json -d policy.rego 'data.<pkg>.allow'", isCorrect: true },
                         { text: "You cannot; a server is mandatory", isCorrect: false },
                         { text: "By opening the file in a browser", isCorrect: false },
-                        { text: "By emailing it to the OPA team", isCorrect: false }
+                        { text: "By POSTing {\"input\": {...}} wrapped to opa eval -i", isCorrect: false }
                     ],
                     explanation: "opa eval is the documented fast loop and the basis of opa test suites in CI (Lesson 20).",
                     difficulty: 1, concept: "OPA Eval"
@@ -236,7 +236,7 @@ opa eval -i input.json -d request.rego 'data.policies.allow'
                                     { text: "Bundle collision — identical data-API paths; namespace packages per team/service", isCorrect: true },
                                     { text: "Nothing — OPA merges same-named packages safely", isCorrect: false },
                                     { text: "JWTs stop verifying cluster-wide", isCorrect: false },
-                                    { text: "The Policy Lab canvas breaks", isCorrect: false }
+                                    { text: "Nothing — OPA merges same-named packages safely", isCorrect: false },
                                 ],
                                 explanation: "Package names are API paths. Collisions silently merge or shadow rules — namespace like code.",
                                 difficulty: 1, concept: "Rego Package"
@@ -248,7 +248,7 @@ opa eval -i input.json -d request.rego 'data.policies.allow'
                                     { text: "In data (PUT/PATCH at runtime); policy reads it, bundle untouched", isCorrect: true },
                                     { text: "Hard-coded in the Rego file", isCorrect: false },
                                     { text: "Compiled into the OPA binary", isCorrect: false },
-                                    { text: "In the quiz file", isCorrect: false }
+                                    { text: "In input alongside per-request JWT claims", isCorrect: false }
                                 ],
                                 explanation: "Input/data separation exists for exactly this: fast-moving facts ride in data, slow-moving logic in versioned policy.",
                                 difficulty: 2, concept: "Input vs Data"
@@ -1259,7 +1259,7 @@ include if {
 
             <div class="lesson-section">
                 <h3>🧪 The Two-User Proof (Docs Tutorial Shape)</h3>
-                <p>Alice (director, engineering) compiles to <code>WHERE department = engineering</code>; Dave (director, marketing) compiles to <code>WHERE department = marketing</code>. Same policy, different filters — the requester's attributes specialize the query. This is ABAC executed by the database, and it is also why input correctness matters twice: a wrong department folds into a wrong filter silently.</p>
+                <p>Alice (director, engineering) compiles to <code>WHERE department = engineering</code>; Dave (director, marketing) compiles to <code>WHERE department = marketing</code>. Same policy, different filters — the requester's attributes specialize the query. This is ABAC executed by the database, and it is also why input correctness matters twice: a wrong department folds into a wrong filter silently. Lab note: add 30m if running the Postgres lab end-to-end.</p>
             </div>
 
             <div class="lesson-section">
@@ -1270,8 +1270,9 @@ include if {
             <div class="lesson-section">
                 <h3>🔍 Critical Review Notes</h3>
                 <ul>
-                    <li><strong>Residual queries need review like policies:</strong> a compiled <code>WHERE true</code> (over-permissive unknowns) is a breach in SQL clothing. Log compiled filters, sample them, alert on tautologies.</li>
-                    <li><strong>Not every rule compiles:</strong> rules with side effects, iteration over unknowns, or non-relational logic may refuse partial eval. Keep filter-path rules relational and simple; keep the exotic logic on the per-request path.</li>
+                    <li><strong>Residual queries need review like policies:</strong> a compiled <code>WHERE true</code> (over-permissive unknowns) is a breach in SQL clothing. Log compiled filters, sample them, alert on tautologies (e.g. alert when <code>query LIKE '%WHERE 1=1%' OR query LIKE '%WHERE true%' OR query NOT LIKE '%WHERE%'</code>).</li>
+                    <li><strong>Translators are unsound until reviewed:</strong> OSS <code>/v1/compile</code> returns a Rego AST — your translator turns it into SQL. Never string-concat raw attribute values into SQL (injection); use bound parameters. Review the translator like policy code.</li>
+                    <li><strong>Not every rule compiles:</strong> rules with side effects, iteration over unknowns, or non-relational logic may refuse partial eval. Keep filter-path rules relational and simple; keep the exotic logic on the per-request path. Builtins that commonly break partial-eval: <code>http.send</code>, <code>walk</code> over unknowns, time/date arithmetic on unknowns, custom functions over unknowns — verify against OPA 1.8 filtering docs for your pinned version.</li>
                     <li><strong>Freshness still applies:</strong> compiled filters embed the requester's attributes at compile time — recompile per request (or per attribute change), never cache across revocations.</li>
                 </ul>
             </div>
@@ -2111,8 +2112,19 @@ no_violations if { count(deny_run_as_root) == 0 }
                 <ul>
                     <li><strong>Subscription policies</strong> = table access (who may subscribe). <strong>Data policies</strong> = inside the table (row filters, column/cell masking).</li>
                     <li><strong>Scopes:</strong> local (one table) → domain (domain's tables) → <strong>global</strong> (by tag across the estate — write once, e.g. <em>mask tag PII everywhere</em>).</li>
-                    <li><strong>Merge logic (no shortcuts):</strong> <em>row/data</em> policies AND together (OR only inside one policy). <em>Subscription ABAC</em> merge is per-policy: <code>Always Required</code> = AND, <code>Share Responsibility</code> = OR. Non-ABAC subscription conflicts (Anyone / Anyone-who-asks / Individual users) resolve by <strong>descending policy-name order</strong> with owner override — renaming a policy can flip enforcement. Guardrails, where they apply, are always required on top of any grant.</li>
+                    <li><strong>Merge logic (no shortcuts — see table below):</strong> <em>row/data</em> policies AND together (OR only inside one policy). <em>Subscription ABAC</em> merge is per-policy: <code>Always Required</code> = AND, <code>Share Responsibility</code> = OR. Non-ABAC subscription conflicts (Anyone / Anyone-who-asks / Individual users) resolve by <strong>descending policy-name order</strong> with owner override — renaming a policy can flip enforcement. Guardrails, where they apply, are always required on top of any grant.</li>
                 </ul>
+                <table>
+                    <thead><tr><th>Policy kind</th><th>Combine</th><th>Example</th></tr></thead>
+                    <tbody>
+                        <tr><td>Row / data policies</td><td>AND (all apply)</td><td>Two row filters both filter; OR needs one policy with OR inside</td></tr>
+                        <tr><td>Subscription ABAC, Always Required</td><td>AND</td><td>Must satisfy this grant AND any other applicable grant</td></tr>
+                        <tr><td>Subscription ABAC, Share Responsibility</td><td>OR</td><td>Any one Share Responsibility grant suffices (guardrails still AND on top)</td></tr>
+                        <tr><td>Non-ABAC subscription conflict</td><td>Descending name order + owner override</td><td>Renaming Zebra→Alpha can flip the winner — treat renames as policy changes</td></tr>
+                        <tr><td>Guardrails</td><td>Always AND on top</td><td>Training-complete required even with manager approval (see quiz q4)</td></tr>
+                    </tbody>
+                </table>
+                <p><strong>Staging procedure (do not edit globals live):</strong> 1) draft in a dev project on sampled tables → 2) staged=true dry-run, verify Pending→Enforced and row counts on a canary table → 3) run the lockout test (mis-scoped table must return zero rows) → 4) promote with staged=false plus rollback note (previous tag mapping + policy export).</p>
                 ${createCodeBlock(`# SHAPE-ILLUSTRATIVE — field names simplified; verify against the
 # Immuta 2026.1 v2 policy API / builder before pasting anywhere.
 # Last verified (semantics): 2026-09 vs Immuta policy API + data-policy docs.
@@ -2192,7 +2204,7 @@ actions:
                 },
                 {
                     id: "q2", type: "multiple-choice",
-                    question: "Two global subscription grants (one Always Required, one Share Responsibility) and one guardrail apply. An admin renames the Share Responsibility policy from 'Zebra' to 'Alpha'. What must you check?",
+                    question: "Two global subscription grants (one Always Required, one Share Responsibility) and one guardrail apply. An admin renames the Share Responsibility policy from 'Zebra' to 'Alpha'. What must you check? (see merge truth table above)",
                     options: [
                         { text: "Whether non-ABAC conflicts now resolve differently — name order decides them, and the Always Required grant still ANDs with everything", isCorrect: true },
                         { text: "Nothing — renames never affect enforcement", isCorrect: false },
@@ -2325,7 +2337,15 @@ condition_request(requestParams, identity) if {
             <div class="lesson-section">
                 <h3>📨 PDP APIs: Permit-Deny and Resolution</h3>
                 <ul>
-                    <li><strong>Permit/Deny (incl. V5 API-access endpoint):</strong> the original REST call (headers, URI path array, body) is forwarded; API matchers/mappers extract AssetID + request attributes; identity mappers parse the JWT. Returns permit/deny + optional deny reasons and asset attributes. (Per PlainID V5 API-access docs — confirm path/payload against your tenant version.)</li>
+                    <li><strong>Permit/Deny (incl. V5 API-access endpoint, verified 2026-09):</strong> the original REST call (headers, URI path array, body) is forwarded; API matchers/mappers extract AssetID + request attributes; identity mappers parse the JWT. Returns permit/deny + optional deny reasons and asset attributes. Paths/payloads vary by tenant version — confirm against your tenant's V5 API-access docs before scripting. Matcher/mapper shape (illustrative — export yours from the console and diff):</li>
+                </ul>
+                ${createCodeBlock(`{ "apiMatcher": { "method": "GET", "pathPrefix": "/accounts/" },
+  "assetMapper": { "assetTemplate": "Bank Accounts",
+    "assetIdFrom": "path.segment[1]" },
+  "identityMapper": { "from": "jwt.claims",
+    "map": { "Userid_identity": "sub", "User_Type": "custom.user_type" } } }`, 'json', 'PlainID API-access mapper: REST call to asset + identity (shape-illustrative)')}
+                <ul>
+                    <li><strong>Scope hierarchy note:</strong> Scopes bound Policies → assets → identities. Multi-identity AND (see below) is evaluated per Scope, not globally — audit the Scope flag on every Scope that serves agents, or agents ride unevaluated in default mode.</li>
                     <li><strong>Policy Resolution:</strong> answers <em>what filters for this user?</em> for SQL/search/big-data enforcement done by another system — returns allowed attribute-filters, not just booleans.</li>
                     <li><strong>Multi-identity evaluation (Scope-gated):</strong> up to three identities from different templates (human + agent + app) evaluated with AND semantics — <strong>but only when <code>Use Multiple Identities Combination</code> is enabled on the Scope (disabled by default)</strong>. More than three identities = request error. In default single-identity mode, other templates' rules are ignored — an agent riding along unevaluated is an over-grant, not defense in depth.</li>
                 </ul>
@@ -2358,6 +2378,7 @@ condition_request(requestParams, identity) if {
                 </ul>
             </div>
             ${renderPolicyLab('Step the Sara support-analyst request through WHO → WHAT → WHEN.')}
+            <div class="lesson-section"><p><strong>Sequencing note:</strong> Immuta → PlainID ordering here is convenience, not dependency — this lesson stands alone without Lesson 17.</p></div>
         `,
 
         concepts: ["WHO WHAT WHEN", "MFA Conditions", "Policy Resolution", "Multi-Identity AND Semantics", "Generated-Policy Verification"],
@@ -3193,7 +3214,7 @@ result = plainid_anonymizer.invoke(user_query)`, 'python', 'Three gates: categor
                     options: [
                         { text: "OpenFGA list-objects (reverse query, not per-doc checks)", isCorrect: true },
                         { text: "OPA opa eval in a loop over all ids", isCorrect: false },
-                        { text: "The frontend guessing", isCorrect: false },
+                        { text: "Cedar isAuthorized per document in a loop", isCorrect: false },
                         { text: "None — listings skip authorization", isCorrect: false }
                     ],
                     explanation: "List-objects is the designed reverse query; per-doc check loops are N+1 authZ (Lesson 14).",
@@ -3204,8 +3225,8 @@ result = plainid_anonymizer.invoke(user_query)`, 'python', 'Three gates: categor
                     question: "Minimum evidence your capstone must present?",
                     options: [
                         { text: "Green tests (incl. denies) + latency p50/p99 + decision-diff + rollback steps", isCorrect: true },
-                        { text: "A screenshot of the login page", isCorrect: false },
-                        { text: "A promise that it works", isCorrect: false },
+                        { text: "Decision logs alone without versioned policy", isCorrect: false },
+                        { text: "Passing allow-tests only, no deny-tests", isCorrect: false },
                         { text: "The policy file alone", isCorrect: false }
                     ],
                     explanation: "The Definition of Done is evidence-shaped: tests, numbers, diffs, procedures — the audit triple from Lesson 5, integrated across engines.",
@@ -3278,7 +3299,7 @@ result = plainid_anonymizer.invoke(user_query)`, 'python', 'Three gates: categor
                                     { text: "Integration theater — each engine must own a seam (API vs sharing vs app rules)", isCorrect: true },
                                     { text: "More engines are always better", isCorrect: false },
                                     { text: "No problem at all", isCorrect: false },
-                                    { text: "Rename the second engine", isCorrect: false }
+                                    { text: "Keep both — redundancy is always safer", isCorrect: false }
                                 ],
                                 explanation: "Engines multiply operational cost. Each must earn its place with decisions only it can make well.",
                                 difficulty: 1, concept: "Capstone Integration"
@@ -3395,8 +3416,8 @@ result = plainid_anonymizer.invoke(user_query)`, 'python', 'Three gates: categor
                     options: [
                         { text: "Denied — guardrails are always required on top of any grant", isCorrect: true },
                         { text: "Allowed — the grant overrides", isCorrect: false },
-                        { text: "Allowed on weekends", isCorrect: false },
-                        { text: "The system crashes", isCorrect: false }
+                        { text: "Allowed — guardrails apply only to contractors", isCorrect: false },
+                        { text: "Error — conflicting policies halt evaluation", isCorrect: false }
                     ],
                     explanation: "Guardrail AND semantics: delegation-safe by design. Grants widen, guardrails bound.",
                     difficulty: 2, concept: "Guardrail Merge"
@@ -3408,7 +3429,7 @@ result = plainid_anonymizer.invoke(user_query)`, 'python', 'Three gates: categor
                         { text: "As the lockout success case: fail-closed evidence + the re-tag fix, logged", isCorrect: true },
                         { text: "Hide it — zero rows looks like failure", isCorrect: false },
                         { text: "Switch to fail-open so rows appear", isCorrect: false },
-                        { text: "Blame the database", isCorrect: false }
+                        { text: "Present it as a warehouse bug, re-scope silently", isCorrect: false }
                     ],
                     explanation: "Lockout is the data plane proving it fails closed. Documented + remediated lockout is rubric points, not embarrassment.",
                     difficulty: 2, concept: "Lockout Demonstration"

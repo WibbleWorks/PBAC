@@ -90,7 +90,8 @@
                 </div>
                 <div class="panel-content" id="panelContent">
                     <div class="animation-container" id="animationContainer">
-                        <canvas id="aiCanvas" width="400" height="400"></canvas>
+                        <canvas id="aiCanvas" width="400" height="400" role="img" aria-label="Policy Lab visualizer. Verdict announced in status region below."></canvas>
+                        <div id="policylab-status" class="sr-only" role="status" aria-live="polite" style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;"></div>
                         <div class="animation-controls" id="animationControls">
                             <!-- Animation controls will be populated -->
                         </div>

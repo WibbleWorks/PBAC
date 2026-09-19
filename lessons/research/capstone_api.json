@@ -39,7 +39,7 @@
             "isCorrect": false
           },
           {
-            "text": "The frontend guessing",
+            "text": "Cedar isAuthorized per document in a loop",
             "isCorrect": false
           },
           {
@@ -61,11 +61,11 @@
             "isCorrect": true
           },
           {
-            "text": "A screenshot of the login page",
+            "text": "Decision logs alone without versioned policy",
             "isCorrect": false
           },
           {
-            "text": "A promise that it works",
+            "text": "Passing allow-tests only, no deny-tests",
             "isCorrect": false
           },
           {
@@ -225,7 +225,7 @@
             "isCorrect": false
           },
           {
-            "text": "Rename the second engine",
+            "text": "Keep both — redundancy is always safer",
             "isCorrect": false
           }
         ],
