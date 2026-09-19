@@ -80,6 +80,14 @@ for (const [id, lesson] of Object.entries(COURSE_DATA.levels.beginner.lessons)) 
 // practical-examples.js lessons are assignments, not inline objects: verify
 // each assigned id carries a quiz + animation by scanning the source.
 {
+    // Static a11y contract: canvas verdicts must mirror into a live region
+    // (axe cannot catch canvas-invisibility; see tests/a11y.mjs §3d).
+    const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+    const animSrc = readFileSync(new URL('../pbac-animations.js', import.meta.url), 'utf8');
+    if (html.includes('id="policylab-status"') && html.includes('aria-live="polite"')) ok('index.html: Policy Lab live region present');
+    else fail('index.html: missing #policylab-status aria-live region');
+    if ((animSrc.match(/\.announce\(/g) || []).length >= 8) ok('pbac-animations.js: all 8 visualizers announce verdicts');
+    else fail('pbac-animations.js: expected >=8 announce() calls (one per visualizer)');
     const quizRe = /COURSE_DATA\.levels\.(\w+)\.lessons\.(\w+)\s*=\s*\{[\s\S]*?quiz:\s*\{[\s\S]*?questions:\s*\[/g;
     const animRe = /animation:\s*\{\s*type:\s*"([^"]+)"/g;
     const peQuizIds = new Set();
@@ -120,7 +128,7 @@ if (!pw) {
         await page.goto(BASE_URL, { waitUntil: 'networkidle' });
 
         const summary = await page.evaluate(async () => {
-            const out = { lessons: 0, quizzes: 0, anims: 0, renderErrs: [], quizErrs: [], animErrs: [] };
+            const out = { lessons: 0, quizzes: 0, reviews: 0, anims: 0, renderErrs: [], quizErrs: [], animErrs: [] };
             const ids = [];
             for (const lvl of Object.values(COURSE_DATA.levels)) {
                 for (const id of Object.keys(lvl.lessons || {})) {
@@ -136,12 +144,18 @@ if (!pw) {
                 try {
                     window.course.startQuiz(id);
                     if (window.quiz.currentQuiz) {
-                        for (let i = 0; i < window.quiz.currentQuiz.questions.length; i++) {
-                            window.quiz.currentQuestionIndex = i;
-                            window.quiz.userAnswers[i] = 0;
+                        // Answer via the shuffle mapping (display -> original)
+                        // so the run proves scoring, not just rendering.
+                        const n = window.quiz.activeCount;
+                        for (let i = 0; i < n; i++) {
+                            const q = window.quiz._origQuestion(i);
+                            const correctOrig = q.options.findIndex(o => o.isCorrect);
+                            window.quiz.userAnswers[i] = window.quiz.optionOrder[i].indexOf(correctOrig);
                         }
                         window.quiz.endQuiz();
-                        out.quizzes++;
+                        if (window.quiz.score !== 100) out.quizErrs.push(`${id}: all-correct run scored ${window.quiz.score}`);
+                        else out.quizzes++;
+                        try { window.quiz.showReview(); out.reviews++; } catch (e) { out.quizErrs.push(`${id}: review ${e.message}`); }
                     }
                     window.quiz.cancelQuiz();
                 } catch (e) { out.quizErrs.push(`${id}: ${e.message}`); }
@@ -159,7 +173,7 @@ if (!pw) {
         if (summary.renderErrs.length || summary.quizErrs.length || summary.animErrs.length || realErrors.length) {
             fail('Browser smoke test surfaced errors (see above)');
         } else {
-            ok(`Browser smoke clean: ${summary.lessons} lessons, ${summary.quizzes} quizzes, ${summary.anims} anims`);
+            ok(`Browser smoke clean: ${summary.lessons} lessons, ${summary.quizzes} quizzes, ${summary.reviews} reviews, ${summary.anims} anims`);
         }
     } catch (e) {
         fail('Browser smoke could not run: ' + e.message);

@@ -33,10 +33,11 @@ class PBACAnimations {
         // api-read (GET only), team-membership (GET/PUT on own team). The canvas
         // prints exactly the rules evaluated below — see drawRego.
         this.regoScenarios = [
-            { label: 'alice (api-full) DELETE /teams/123', roles: ['api-full'], groups: [], method: 'DELETE' },
-            { label: 'bob (api-read) GET /teams/123', roles: ['api-read'], groups: [], method: 'GET' },
-            { label: 'bob (Team123) PUT /teams/123', roles: [], groups: ['Team123'], method: 'PUT' },
-            { label: 'eve (api-read, Team999) PUT /teams/123', roles: ['api-read'], groups: ['Team999'], method: 'PUT' }
+            { label: 'alice (api-full) DELETE /teams/123', roles: ['api-full'], groups: [], method: 'DELETE', teamId: '123' },
+            { label: 'bob (api-read) GET /teams/123', roles: ['api-read'], groups: [], method: 'GET', teamId: '123' },
+            { label: 'bob (Team123) PUT /teams/123', roles: [], groups: ['Team123'], method: 'PUT', teamId: '123' },
+            { label: 'eve (api-read, Team999) PUT /teams/123', roles: ['api-read'], groups: ['Team999'], method: 'PUT', teamId: '123' },
+            { label: 'mallory (Team123) PUT /teams/456 — wrong team', roles: [], groups: ['Team123'], method: 'PUT', teamId: '456' }
         ];
         this.cedarScenario = 0;
         // Literal Lesson 8 policies: (P1) alice-only view of VacationPhoto94.jpg,
@@ -45,7 +46,8 @@ class PBACAnimations {
             { label: 'alice views VacationPhoto94.jpg (public)', principal: 'alice', action: 'view', photo: 'VacationPhoto94.jpg', owner: 'alice', priv: false },
             { label: 'bob views VacationPhoto94.jpg (public)', principal: 'bob', action: 'view', photo: 'VacationPhoto94.jpg', owner: 'alice', priv: false },
             { label: 'bob views VacationPhoto94.jpg (private)', principal: 'bob', action: 'view', photo: 'VacationPhoto94.jpg', owner: 'alice', priv: true },
-            { label: 'alice edits own photo (private)', principal: 'alice', action: 'editPhoto', photo: 'HolidaySnap12.jpg', owner: 'alice', priv: true }
+            { label: 'alice edits own photo (private)', principal: 'alice', action: 'editPhoto', photo: 'HolidaySnap12.jpg', owner: 'alice', priv: true },
+            { label: 'bob edits photo, owner unknown (missing attr)', principal: 'bob', action: 'editPhoto', photo: 'OrphanPic01.jpg', owner: null, priv: false }
         ];
         this.fgaScenario = 0;
         this.fgaScenarios = [
@@ -302,12 +304,15 @@ class PBACAnimations {
 
     drawRego(ctx, W, H) {
         const s = this.regoScenarios[this.regoScenario];
-        // Exactly Lesson 7's three rules (package demo):
+        // Exactly Lesson 7's three rules (package demo), including the
+        // URL→group derivation: teamName := concat("", ["Team", teamId]).
+        const derived = 'Team' + (s.teamId || '123');
         const fullAllow = s.roles.includes('api-full');
         const readAllow = s.method === 'GET' && s.roles.includes('api-read');
-        const teamAllow = (s.method === 'GET' || s.method === 'PUT') && s.groups.includes('Team123');
+        const teamAllow = (s.method === 'GET' || s.method === 'PUT') && s.groups.includes(derived);
         const allow = fullAllow || readAllow || teamAllow;
-        const which = fullAllow ? 'Matched "api-full" rule.' : readAllow ? 'Matched "api-read" GET rule.' : teamAllow ? 'Matched team-membership rule (Team123 derived from URL).' : '';
+        const which = fullAllow ? 'Matched "api-full" rule.' : readAllow ? 'Matched "api-read" GET rule.' : teamAllow ? 'Matched team-membership rule (' + derived + ' derived from URL).' : '';
+        const miss = !allow && (s.method === 'GET' || s.method === 'PUT') && s.groups.length ? ' Derived ' + derived + ' from URL not in groups — the IDOR-closing derivation.' : '';
         ctx.fillStyle = '#e2e8f0'; ctx.font = '600 12px system-ui';
         ctx.fillText('package demo  |  default allow := false', 12, 48);
         ctx.fillStyle = '#94a3b8'; ctx.font = '12px monospace';
@@ -319,20 +324,24 @@ class PBACAnimations {
         ctx.fillStyle = allow ? '#22c55e' : '#ef4444'; ctx.font = '700 20px system-ui';
         ctx.fillText('result: ' + (allow ? 'true' : 'false'), 12, 160);
         ctx.fillStyle = '#94a3b8'; ctx.font = '12px system-ui';
-        this.wrap(ctx, allow ? which : 'No rule matched -> default deny. Note: api-read is GET-only, so eve PUTs deny.', 12, 182, W - 24, 18);
-        this.announce('Rego simulator: ' + s.label + ' — result ' + (allow ? 'true' : 'false') + '. ' + (allow ? which : 'No rule matched, default deny.'));
+        this.wrap(ctx, allow ? which : 'No rule matched -> default deny. Note: api-read is GET-only, so eve PUTs deny.' + miss, 12, 182, W - 24, 18);
+        this.announce('Rego simulator: ' + s.label + ' — result ' + (allow ? 'true' : 'false') + '. ' + (allow ? which : 'No rule matched, default deny.' + miss));
         ctx.fillStyle = '#64748b'; ctx.font = '11px system-ui';
         ctx.fillText('Mirrors mouton0815/authorization-with-OPA team pattern.', 12, H - 16);
     }
 
     drawCedar(ctx, W, H) {
         const s = this.cedarScenarios[this.cedarScenario];
+        // Missing-attribute path: owner unknown -> evaluation error, the
+        // owner-scoped policy is skipped, default-deny follows. Lesson 8 Q6.
+        const missingOwner = (s.owner === null || s.owner === undefined);
         // Exactly Lesson 8's three policies:
-        const p1 = s.principal === 'alice' && s.action === 'view' && s.photo === 'VacationPhoto94.jpg';
-        const p2 = s.action === 'editPhoto' && s.principal === s.owner;
-        const forbid = s.priv && s.principal !== s.owner;
-        const decision = (p1 || p2) && !forbid ? 'Allow' : 'Deny';
-        const which = forbid ? 'F (private-forbid) matches and is not escaped -> forbid wins.'
+        const p1 = !missingOwner && s.principal === 'alice' && s.action === 'view' && s.photo === 'VacationPhoto94.jpg';
+        const p2 = !missingOwner && s.action === 'editPhoto' && s.principal === s.owner;
+        const forbid = !missingOwner && s.priv && s.principal !== s.owner;
+        const decision = !missingOwner && (p1 || p2) && !forbid ? 'Allow' : 'Deny';
+        const which = missingOwner ? 'owner attribute missing: evaluation error, policy skipped -> default deny. Check errors diagnostics + schema (Lesson 8).'
+            : forbid ? 'F (private-forbid) matches and is not escaped -> forbid wins.'
             : p1 ? 'P1 (alice-only view permit) matches, no forbid.'
             : p2 ? 'P2 (owner editPhoto permit) matches, owner escapes the forbid.'
             : 'No permit matches (bob has no view permit on this photo).';
@@ -353,17 +362,55 @@ class PBACAnimations {
 
     drawFga(ctx, W, H) {
         const s = this.fgaScenarios[this.fgaScenario];
+        // Computed from tuples + model (Lesson 9 DSL): viewer defined as
+        // [user, team#member] or editor; editor implies viewer (concentric);
+        // team membership resolves transitively. s.result stays as the
+        // documented expectation — a mismatch would flag model/canvas drift.
+        const computed = this.fgaCheck(s.check, s.tuples);
+        const result = computed;
         ctx.fillStyle = '#e2e8f0'; ctx.font = '600 12px system-ui';
         ctx.fillText('model: type document { viewer: [user] or editor }', 12, 48);
         ctx.fillStyle = '#94a3b8'; ctx.font = '12px monospace';
         s.tuples.forEach((t, i) => ctx.fillText('tuple: ' + t, 12, 70 + i * 18));
         ctx.fillStyle = '#c5d4e3'; ctx.font = '12px system-ui';
         ctx.fillText('check(' + s.check + ')', 12, 70 + s.tuples.length * 18 + 12);
-        ctx.fillStyle = s.result ? '#22c55e' : '#ef4444'; ctx.font = '700 20px system-ui';
-        ctx.fillText(s.result ? 'ALLOW (relation holds)' : 'DENY (no path)', 12, 70 + s.tuples.length * 18 + 44);
-        this.announce('OpenFGA check ' + s.check + ' — ' + (s.result ? 'ALLOW, relation holds.' : 'DENY, no path.'));
+        ctx.fillStyle = result ? '#22c55e' : '#ef4444'; ctx.font = '700 20px system-ui';
+        ctx.fillText(result ? 'ALLOW (relation holds)' : 'DENY (no path)', 12, 70 + s.tuples.length * 18 + 44);
+        this.announce('OpenFGA check ' + s.check + ' — ' + (result ? 'ALLOW, relation holds.' : 'DENY, no path.'));
+        if (computed !== s.result) this.announce('Drift warning: computed ' + computed + ' differs from documented ' + s.result + '.');
         ctx.fillStyle = '#64748b'; ctx.font = '11px system-ui';
         ctx.fillText('OpenFGA: viewer defined as editor => concentric inherit.', 12, H - 16);
+    }
+
+    fgaCheck(check, tuples) {
+        const parts = String(check).trim().split(/\s+/);
+        if (parts.length < 3) return false;
+        const subject = parts[0], relation = parts[1], object = parts.slice(2).join(' ');
+        const edges = tuples.map(t => {
+            const p = String(t).trim().split(/\s+/);
+            return { s: p[0], r: p[1], o: p.slice(2).join(' ') };
+        });
+        const has = (s, r, o) => edges.some(e => e.s === s && e.r === r && e.o === o);
+        const isMember = (team, user, depth) => {
+            if (depth > 4) return false;
+            if (has(team, 'member', user)) return true;
+            return edges.some(e => e.s === team && e.r === 'member' && String(e.o).startsWith('team:') && isMember(e.o, user, depth + 1));
+        };
+        const can = (s, rel, o, seen, depth) => {
+            if (depth > 6) return false;
+            const key = s + '|' + rel + '|' + o;
+            if (seen.includes(key)) return false;
+            seen.push(key);
+            if (has(s, rel, o)) return true;
+            if (rel === 'viewer' && can(s, 'editor', o, seen, depth + 1)) return true;
+            for (const e of edges) {
+                if (e.o === o && (e.r === rel || (rel === 'viewer' && e.r === 'editor')) && String(e.s).startsWith('team:')) {
+                    if (isMember(e.s, s, 0)) return true;
+                }
+            }
+            return false;
+        };
+        return can(subject, relation, object, [], 0);
     }
 
     drawMasking(ctx, W, H) {

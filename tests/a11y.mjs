@@ -121,6 +121,15 @@ await page.evaluate(() => {
 await page.waitForTimeout(200);
 await audit('quiz results + capstone table');
 
+// 3d. Policy Lab live region (axe cannot see canvas pixels — assert the DOM
+// contract directly: verdicts must mirror into an aria-live status region).
+const liveOk = await page.evaluate(() => {
+    const el = document.getElementById('policylab-status');
+    return !!(el && el.getAttribute('aria-live') === 'polite' && el.getAttribute('role') === 'status');
+});
+if (liveOk) ok('Policy Lab live region present (aria-live polite, role status)');
+else fail('Policy Lab live region missing — canvas verdicts are screen-reader invisible');
+
 // 4. Mobile viewport (<=900px triggers the drawer nav)
 await page.setViewportSize({ width: 375, height: 700 });
 await page.evaluate(() => {

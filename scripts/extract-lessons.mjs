@@ -67,11 +67,15 @@ for (const lvl of levelOrder) {
     mkdirSync(dir, { recursive: true });
     for (const [id, lesson] of Object.entries(lessons)) {
         // Write the lesson as clean JSON (no JSDOM/window round-trip)
+        // `unlocked` is carried when set so the mirror cannot drift silently;
+        // absent stays absent (JSON.stringify drops undefined) and the
+        // drift check below treats absent as false on both sides.
         const out = {
             id: lesson.id, title: lesson.title, subtitle: lesson.subtitle,
             level: lesson.level, number: lesson.number,
             estimatedTime: lesson.estimatedTime, difficulty: lesson.difficulty,
             prerequisites: lesson.prerequisites,
+            unlocked: lesson.unlocked,
             // content is HTML — keep it as-is; this is the proof-of-concept
             content: lesson.content,
             concepts: lesson.concepts,

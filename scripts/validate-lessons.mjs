@@ -195,6 +195,41 @@ if (fail > 0) {
 }
 console.log(`LESSON SCHEMA VALIDATION PASSED (${pass} lessons valid against docs/lesson.schema.json)`);
 
+// --- Semantic quiz + prereq checks (schema cannot express these) ---
+// check-concept-coverage.mjs owns concept-tagging both directions, bank>=8
+// and sampleSize==5; this block owns single-correct, explanations,
+// passingScore reachability, and prereq resolution so `validate-lessons`
+// alone is sufficient in CI.
+{
+    let semFail = 0;
+    const ids = new Set();
+    for (const lvl of levelOrder) {
+        for (const id of Object.keys(courseDataLoaded.levels[lvl]?.lessons || {})) ids.add(id);
+    }
+    for (const lvl of levelOrder) {
+        for (const [id, lesson] of Object.entries(courseDataLoaded.levels[lvl]?.lessons || {})) {
+            for (const pre of lesson.prerequisites || []) {
+                if (!ids.has(pre)) { console.error(`  FAIL: ${id}: prerequisite '${pre}' resolves to no lesson`); semFail++; }
+            }
+            const quiz = lesson.quiz;
+            if (!quiz) continue;
+            if (quiz.sampleSize !== 5) { console.error(`  FAIL: ${id}: sampleSize ${quiz.sampleSize} !== 5`); semFail++; }
+            // passingScore must sit on the reachable ladder for 5 sampled questions
+            if (quiz.passingScore % 20 !== 0 || quiz.passingScore < 0 || quiz.passingScore > 100) {
+                console.error(`  FAIL: ${id}: passingScore ${quiz.passingScore} unreachable with sampleSize 5`); semFail++;
+            }
+            (quiz.questions || []).forEach((q, i) => {
+                const correct = (q.options || []).filter(o => o.isCorrect === true).length;
+                if (correct !== 1) { console.error(`  FAIL: ${id} q${i + 1}: ${correct} correct options (need exactly 1)`); semFail++; }
+                if (!q.explanation || !String(q.explanation).trim()) { console.error(`  FAIL: ${id} q${i + 1}: empty explanation (review mode needs it)`); semFail++; }
+                if (!q.concept || !(lesson.concepts || []).includes(q.concept)) { console.error(`  FAIL: ${id} q${i + 1}: concept '${q.concept}' not in lesson concepts`); semFail++; }
+            });
+        }
+    }
+    if (semFail > 0) { console.error(`\nSEMANTIC QUIZ/PREREQ CHECKS FAILED (${semFail} finding(s))`); process.exit(1); }
+    console.log('SEMANTIC QUIZ/PREREQ CHECKS PASSED (single-correct, explanations, reachable score, no dangling prereqs)');
+}
+
 // --- lessons/ JSON mirror: schema-valid + in sync with JS source ---
 // The extractor (scripts/extract-lessons.mjs) is the only writer; this block
 // fails CI when the mirror is stale, hand-edited into divergence, or invalid.
@@ -219,6 +254,8 @@ import { readdirSync, existsSync } from 'node:fs';
             for (const k of ['id', 'title', 'subtitle', 'level', 'number', 'estimatedTime', 'difficulty']) {
                 if (JSON.stringify(obj[k]) !== JSON.stringify(src[k])) drift.push(k);
             }
+            // `unlocked` defaults false: absent on both sides is in sync.
+            if (JSON.stringify(obj.unlocked ?? false) !== JSON.stringify(src.unlocked ?? false)) drift.push('unlocked');
             if (JSON.stringify(obj.prerequisites) !== JSON.stringify(src.prerequisites)) drift.push('prerequisites');
             if (JSON.stringify(obj.concepts) !== JSON.stringify(src.concepts)) drift.push('concepts');
             if (obj.content !== src.content) drift.push('content');
