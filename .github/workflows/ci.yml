@@ -99,3 +99,22 @@ jobs:
           python3 -m http.server 8765 >/tmp/serve.log 2>&1 &
           sleep 1
           node tests/a11y.mjs
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [syntax, version-pin-lint, schema-validate, concept-coverage, smoke, a11y]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deployment
+        uses: actions/deploy-pages@v4
