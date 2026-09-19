@@ -88,6 +88,19 @@ for (const [id, lesson] of Object.entries(COURSE_DATA.levels.beginner.lessons)) 
     else fail('index.html: missing #policylab-status aria-live region');
     if ((animSrc.match(/\.announce\(/g) || []).length >= 8) ok('pbac-animations.js: all 8 visualizers announce verdicts');
     else fail('pbac-animations.js: expected >=8 announce() calls (one per visualizer)');
+    // Learning-analytics contract: dwell + attempts must round-trip through
+    // every persistence path (local, export/import, Supabase sync).
+    const mainSrc = readFileSync(new URL('../main.js', import.meta.url), 'utf8');
+    const quizSrc = readFileSync(new URL('../quiz-system.js', import.meta.url), 'utf8');
+    const authSrc = readFileSync(new URL('../auth.js', import.meta.url), 'utf8');
+    for (const key of ['lessonVisits', 'quizAttempts']) {
+        if (mainSrc.includes(key)) ok(`main.js persists ${key}`);
+        else fail(`main.js: missing ${key} in progress payload`);
+        if (authSrc.includes(key)) ok(`auth.js syncs ${key}`);
+        else fail(`auth.js: missing ${key} in Supabase payload`);
+    }
+    if (quizSrc.includes('this.attempts') && quizSrc.includes('importAttempts')) ok('quiz-system.js records/imports attempts');
+    else fail('quiz-system.js: attempt recording incomplete');
     const quizRe = /COURSE_DATA\.levels\.(\w+)\.lessons\.(\w+)\s*=\s*\{[\s\S]*?quiz:\s*\{[\s\S]*?questions:\s*\[/g;
     const animRe = /animation:\s*\{\s*type:\s*"([^"]+)"/g;
     const peQuizIds = new Set();

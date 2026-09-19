@@ -13,6 +13,11 @@ class PBACourse {
         this.timeSpent = 0;
         this.confidenceLevels = {};
         this.startTime = Date.now();
+        // Learning analytics (aggregate only, no PII): per-lesson dwell ms
+        // accumulated across visits; persisted like the rest of progress.
+        this.lessonVisits = {};
+        this.lessonEnterId = null;
+        this.lessonEnterTime = null;
         
         // DOM elements
         this.lessonContainer = null;
@@ -49,6 +54,13 @@ class PBACourse {
         this.masteredTopicsEl = document.getElementById('masteredTopics');
         this.avgScoreEl = document.getElementById('avgScore');
         this.confidenceLevelEl = document.getElementById('confidenceLevel');
+
+        // Flush the open dwell interval so background time is not billed.
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) this._flushVisit(true);
+            else if (this.lessonEnterId) this.lessonEnterTime = Date.now();
+        });
+        window.addEventListener('pagehide', () => { this._flushVisit(true); this.saveProgress(); });
 
         // Load course data
         this.loadCourseData();
@@ -433,6 +445,7 @@ class PBACourse {
                 this.timeSpent = progress.timeSpent || 0;
                 this.confidenceLevels = progress.confidenceLevels || {};
                 this.currentLessonId = progress.currentLessonId || null;
+                this.lessonVisits = progress.lessonVisits || {};
                 console.log('Progress loaded:', progress);
             }
         } catch (e) {
@@ -449,7 +462,9 @@ class PBACourse {
                 timeSpent: this.timeSpent,
                 confidenceLevels: this.confidenceLevels,
                 currentLessonId: this.currentLessonId,
-                learningPath: this.learningPath
+                learningPath: this.learningPath,
+                lessonVisits: this.lessonVisits,
+                quizAttempts: (window.quiz && window.quiz.attempts) || []
             };
             localStorage.setItem('pbacCourseProgress', JSON.stringify(progress));
             // Also push to Supabase if the user is logged in (auth.js)
@@ -567,6 +582,9 @@ class PBACourse {
                 timeSpent: this.timeSpent,
                 confidenceLevels: this.confidenceLevels,
                 currentLessonId: this.currentLessonId,
+                learningPath: this.learningPath || 'builder',
+                lessonVisits: this.lessonVisits,
+                quizAttempts: (window.quiz && window.quiz.attempts) || []
             };
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
@@ -601,6 +619,10 @@ class PBACourse {
             this.timeSpent = data.timeSpent || 0;
             this.confidenceLevels = data.confidenceLevels || {};
             this.currentLessonId = data.currentLessonId || null;
+            this.lessonVisits = data.lessonVisits || {};
+            if (window.quiz && typeof window.quiz.importAttempts === 'function') {
+                window.quiz.importAttempts(data.quizAttempts || []);
+            }
 
             if (data.learningPath) {
                 this.setLearningPath(data.learningPath);
@@ -711,6 +733,10 @@ class PBACourse {
 
         this.currentLessonId = lessonId;
 
+        // Learning analytics: bill the interval just spent on the previous
+        // lesson, then open a dwell interval on the new one.
+        this._trackVisit(lessonId);
+
         // Find the lesson
         let lesson = null;
         let levelKey = null;
@@ -804,6 +830,30 @@ class PBACourse {
 
         // Log activity
         this.logActivity(`Started lesson: ${lesson.title}`);
+    }
+
+    // Per-lesson dwell tracking for re-timing evidence (aggregate ms per
+    // lesson id). Idle/background time is excluded via visibility handling;
+    // intervals are capped at 6h so a forgotten tab cannot poison the data.
+    _trackVisit(lessonId) {
+        this._flushVisit(false);
+        this.lessonEnterId = lessonId;
+        this.lessonEnterTime = Date.now();
+    }
+
+    _flushVisit(close) {
+        if (this.lessonEnterId && this.lessonEnterTime) {
+            const dt = Date.now() - this.lessonEnterTime;
+            if (dt > 0 && dt < 6 * 3600 * 1000) {
+                this.lessonVisits[this.lessonEnterId] = (this.lessonVisits[this.lessonEnterId] || 0) + dt;
+            }
+        }
+        if (close) {
+            this.lessonEnterId = null;
+            this.lessonEnterTime = null;
+        } else if (this.lessonEnterId) {
+            this.lessonEnterTime = Date.now();
+        }
     }
 
     // Return the previous and next lessons in level order, ignoring the lesson itself
@@ -1130,6 +1180,9 @@ class PBACourse {
         this.timeSpent = 0;
         this.confidenceLevels = {};
         this.currentLessonId = null;
+        this.lessonVisits = {};
+        this.lessonEnterId = null;
+        this.lessonEnterTime = null;
 
         this.saveProgress();
         location.reload();

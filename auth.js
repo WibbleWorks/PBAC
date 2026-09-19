@@ -260,6 +260,10 @@
           course.timeSpent = serverProgress.timeSpent || 0;
           course.confidenceLevels = serverProgress.confidenceLevels || {};
           course.currentLessonId = serverProgress.currentLessonId || null;
+          course.lessonVisits = serverProgress.lessonVisits || {};
+          if (window.quiz && typeof window.quiz.importAttempts === 'function') {
+            window.quiz.importAttempts(serverProgress.quizAttempts || []);
+          }
 
           if (serverProgress.learningPath) {
             course.setLearningPath(serverProgress.learningPath);
@@ -296,6 +300,8 @@
         confidenceLevels: course.confidenceLevels,
         currentLessonId: course.currentLessonId,
         learningPath: course.learningPath,
+        lessonVisits: course.lessonVisits || {},
+        quizAttempts: (window.quiz && window.quiz.attempts) || [],
       };
       const { error } = await supabase
         .from('progress')
