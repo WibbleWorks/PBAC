@@ -19,7 +19,7 @@ import { readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 
 const BASE_URL = process.env.SMOKE_URL || 'http://localhost:8765/index.html';
-const KNOWN_HARMLESS = ['favicon.ico'];  // acceptable console errors
+const KNOWN_HARMLESS = ['favicon.ico', 'auth-config.json'];  // by-design optional fetches (see README: Supabase sync)
 
 let failures = 0;
 function fail(msg) { console.error('  FAIL: ' + msg); failures++; }
@@ -123,7 +123,10 @@ if (!pw) {
         const browser = await pw.chromium.launch();
         const page = await browser.newPage();
         const consoleErrors = [];
-        page.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+        // 'Failed to load resource' console text carries no URL and duplicates
+        // the response event below (which does) — classify once, on URLs.
+        page.on('console', m => { if (m.type() === 'error' && !m.text().startsWith('Failed to load resource')) consoleErrors.push(m.text()); });
+        page.on('response', r => { if (r.status() >= 400) consoleErrors.push(`${r.status()} ${r.url()}`); });
         page.on('pageerror', e => consoleErrors.push('pageerror: ' + e.message));
         await page.goto(BASE_URL, { waitUntil: 'networkidle' });
 
