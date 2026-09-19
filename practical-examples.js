@@ -869,7 +869,7 @@ type document
         content: `
             <div class="lesson-section">
                 <h3>🏛️ Where the Boxes Came From</h3>
-                <p>XACML (OASIS standard) gave the field its vocabulary — PEP/PDP/PIP/PAP from Lesson 3 are XACML terms — and its architecture: requests and policies as XML, decisions Permit/Deny/NotApplicable/Indeterminate. It lost on ergonomics: even simple rules drown in angle brackets. <strong>ALFA</strong> (Abbreviated Language for Authorization, OASIS-adopted 2014) keeps the XACML model with readable syntax. Every modern engine in this course replays XACML ideas: learn them once here, recognize them everywhere.</p>
+                <p>XACML (OASIS standard) gave the field its vocabulary — PEP/PDP/PIP/PAP from Lesson 3 are XACML terms — and its architecture: requests and policies as XML, decisions Permit/Deny/NotApplicable/Indeterminate. It lost on ergonomics: even simple rules drown in angle brackets. <strong>ALFA</strong> (Abbreviated Language for Authorization, OASIS-adopted 2014) keeps the XACML model with readable syntax. Most engines in this course replay XACML ideas (combining, obligations, the four boxes); ReBAC's graph lineage runs parallel — see Lesson 9. Learn the model once here, recognize it everywhere.</p>
                 <p><strong>Reading note:</strong> the ALFA below is a shape-illustrative fragment (Enforcer tutorial form) — a runnable file also needs attribute declarations, and bare <code>CurrentTime</code> is bag-valued in strict ALFA (canonical: <code>timeInRange(timeOneAndOnly(currentTime), ...)</code>). Read it for structure, not for pasting.</p>
                 ${createCodeBlock(`// Last verified: 2026-09 vs Enforcer ALFA docs + Axiomatics guides
 namespace AcmeCorp
@@ -891,6 +891,22 @@ namespace AcmeCorp
         }
     }
 }`, 'alfa', 'ALFA: policy, target scoping, rule with permit + condition')}
+                <p><strong>What the ALFA above looks like inherited as raw XACML</strong> (same rule, shape-illustrative — abbreviated with <code>…</code>; you will read this, not write it):</p>
+                ${createCodeBlock(`<!-- Same openMainDoor rule as raw XACML 3.0 (decoder-ring sample) -->
+<Policy PolicyId="buildingAccess" RuleCombiningAlgId="…:deny-overrides">
+  <Target><AnyOf><AllOf>
+    <Match MatchId="…:string-equal">
+      <AttributeValue DataType="…#string">door</AttributeValue>
+      <AttributeDesignator Category="…:resource" AttributeId="ResourceType"/>
+    </Match>
+  </AllOf></AnyOf></Target>
+  <Rule RuleId="openMainDoor" Effect="Permit">
+    <Target><!-- Resource == mainDoor, Action == open (same Matches) -->…</Target>
+    <Condition><!-- Subject.Role == employee AND timeInRange(timeOneAndOnly(currentTime), 08:00, 18:00) -->
+      <Apply FunctionId="…:and">…</Apply>
+    </Condition>
+  </Rule>
+</Policy>`, 'xml', 'XACML XML: the same rule drowning in angle brackets')}
             </div>
 
             <div class="lesson-section">
@@ -1070,12 +1086,12 @@ namespace AcmeCorp
         number: 11,
         estimatedTime: 75,
         difficulty: 3,
-        prerequisites: ["openfga_foundations"],
+        prerequisites: ["rego_api_authz"],
 
         content: `
             <div class="lesson-section">
                 <h3>📦 From Files to Bundles</h3>
-                <p>Real estates do not PUT Rego through ad-hoc REST calls (the demo-repos do that for teaching). Production: <strong>.rego + data.json in Git → CI (opa fmt, opa test) → signed bundle → OPA sidecars poll/push</strong>. Hot reload lands in under a second with zero restarts — the rest-rego sidecar demonstrates exactly this.</p>
+                <p>Real estates do not PUT Rego through ad-hoc REST calls (the demo-repos do that for teaching). Production: <strong>.rego + data.json in Git → CI (opa fmt, opa test) → signed bundle → OPA sidecars poll/push</strong>. Hot reload lands in under a second on local bundle polls with zero restarts — the rest-rego sidecar demonstrates exactly this (caveat: large bundles over slow links take longer; measure your p99 bundle-activation, not the demo's).</p>
                 ${createCodeBlock(`# CI gate for every policy change (copy into your pipeline)
 opa fmt --diff ./policies        # canonical formatting, diff fails the build
 opa test ./policies/ -v          # allow-tests + deny-tests + regression tests
@@ -1100,11 +1116,13 @@ opa build -b ./policies -o bundle.tar.gz   # ship one artifact
                 <h3>🔍 Critical Review: Production Gaps the Demos Admit</h3>
                 <ul>
                     <li><strong>Debug with reasons:</strong> the zero-trust gatekeeper repo queries a companion <code>data.zt.authz.reasons</code> rule to name the vetoing sub-policy. Ship a reasons rule from day one.</li>
-                    <li><strong>Decision logs:</strong> OPA can ship every decision (input + result + policy id) to your log pipeline — the audit trail compliance asked for in Lesson 5.</li>
+                    <li><strong>Decision logs:</strong> OPA can ship every decision (input + result + policy id) to your log pipeline — the audit trail compliance asked for in Lesson 5. Configure drop/masking for sensitive input fields first, or the audit trail becomes a PII leak.</li>
+                    <li><strong>Sign bundles, watch status:</strong> sign bundles in CI (<code>opa build --signing-key</code>) and verify on agents; poll <code>/v1/status</code> and the discovery service so a sidecar running a stale bundle pages you instead of silently enforcing yesterday's policy.</li>
                     <li><strong>Cache carefully:</strong> the Keycloak-middleware pattern caches decisions ~5s with <code>OPA_FAIL_OPEN=false</code>. Cache keys must include tenant + roles + resource, or you will serve alice's verdict to bob.</li>
                 </ul>
             </div>
             ${renderPolicyLab('Compare sidecar vs gateway vs middleware latency and failure posture.')}
+            <div class="lesson-section"><p><strong>Choosing between these?</strong> Lesson 19 is the decision reference — it compares the three patterns on latency, blast radius, and code-change budget. This lesson is the setup; that lesson is the choice.</p></div>
         `,
 
         concepts: ["Policy Bundles", "Data Injection API", "Decision API Paths", "Decision Logs and Reasons", "Decision Caching"],
@@ -1405,12 +1423,12 @@ include if {
         number: 13,
         estimatedTime: 70,
         difficulty: 3,
-        prerequisites: ["opa_data_filtering"],
+        prerequisites: ["cedar_foundations"],
 
         content: `
             <div class="lesson-section">
                 <h3>📐 Schema First: The Compiler for Your Policy</h3>
-                <p>Cedar schemas declare entity shapes and legal (principal, action, resource) combinations. The validator rejects nonsense policies <em>before</em> deployment — e.g. comparing a User to a Photo owner of the wrong type. This is Cedar's edge over stringly-typed Rego inputs.</p>
+                <p>Cedar schemas declare entity shapes and legal (principal, action, resource) combinations. The validator rejects nonsense policies <em>before</em> deployment — e.g. comparing a User to a Photo owner of the wrong type. This is Cedar's edge over stringly-typed Rego inputs. <strong>Limits:</strong> the validator sees policy + schema, not request context or entity-store contents — <code>context</code> typos and missing entities still surface at evaluation as errors-then-deny (Lesson 8 Q6). Validate with representative entities, not just the schema file.</p>
                 ${createCodeBlock(`// Cedar schema (human form): principals, resources, actions, member attrs
 entity User { department: String, clearance: Long };
 entity Photo { owner: User, private: Boolean };
@@ -1420,7 +1438,7 @@ action "editPhoto" appliesTo { principal: [User], resource: [Photo], context: {}
 
             <div class="lesson-section">
                 <h3>🧩 Templates: One Rule, Many Links</h3>
-                <p>Policy <strong>templates</strong> leave slots (<code>?principal</code>, <code>?resource</code>) filled at link time. The docs' verified example ships a static permit plus a forbid template — one template, thousands of scoped links, no copy-paste policies.</p>
+                <p>Policy <strong>templates</strong> leave slots (<code>?principal</code>, <code>?resource</code>) filled at link time. The docs' verified example ships a static permit plus a forbid template — one template, thousands of scoped links, no copy-paste policies. Templates pair: a <strong>permit template</strong> grants per scope (e.g. per-folder view), the <strong>forbid template</strong> below bounds it — and links have a lifecycle: create on grant, <strong>unlink on revoke</strong>; a forgotten link is a lingering grant, so list links per template in your offboarding/runbook check.</p>
                 ${createCodeBlock(`// Template: ?resource filled per-link (e.g. per folder) at deploy time
 forbid (
     principal == User::"12UA45",
@@ -1432,7 +1450,17 @@ forbid (
             <div class="lesson-section">
                 <h3>☁️ Amazon Verified Permissions (Managed PDP)</h3>
                 <ul>
-                    <li><strong>IsAuthorized:</strong> your service sends (principal, action, resource, context, entities) and gets decision + determining policies. Same request shape as Lesson 8, over HTTPS, with CloudTrail audit.</li>
+                    <li><strong>IsAuthorized:</strong> your service sends (principal, action, resource, context, entities) and gets decision + determining policies. Same request shape as Lesson 8, over HTTPS, with CloudTrail audit. Shape-illustrative JSON (confirm field names against your AVP API version):</li>
+                </ul>
+                ${createCodeBlock(`{ "principal": { "entityType": "User", "entityId": "alice" },
+  "action": { "actionType": "Action", "actionId": "view" },
+  "resource": { "entityType": "Photo", "entityId": "VacationPhoto94.jpg" },
+  "context": { "mfa": true },
+  "entities": { "entityList": [ /* User alice + Photo with owner/refattrs */ ] } }
+// Local equivalent: cedar authorize --policies policies.cedar
+//   --entities entities.json --request request.json
+// (confirm flags with 'cedar authorize --help' for your pinned CLI)`, 'json', 'IsAuthorized request: principal/action/resource/context + entities')}
+                <ul>
                     <li><strong>Policy stores version everything;</strong> schema validation runs at write time — bad policies are rejected, not deployed.</li>
                     <li><strong>Honest costs:</strong> per-request pricing + network hop + AWS coupling. Exit path: Cedar is open-source — the same policies run in the embedded engine (must keep entity feeds portable).</li>
                 </ul>
@@ -1566,7 +1594,7 @@ forbid (
         number: 14,
         estimatedTime: 70,
         difficulty: 3,
-        prerequisites: ["cedar_production"],
+        prerequisites: ["openfga_foundations"],
 
         content: `
             <div class="lesson-section">
@@ -1589,7 +1617,18 @@ fga check --store-id $STORE --model-id $MODEL_ID user:anne viewer document:Q3
 
             <div class="lesson-section">
                 <h3>⏱️ Contextual Tuples (Verified Behavior)</h3>
-                <p>Time windows and IP ranges ride along as <strong>contextual tuples</strong> supplied at check-time (docs pseudocode: <code>ip-address-range:10.0.0.0/16</code>, <code>timeslot:18_19</code>). Precision note: gating on them requires <strong>conditions with request context</strong> in the model — contextual tuples alone are just facts. And do not rely on the playground for this path: integration-test time/IP-gated checks against a real server.</p>
+                <p>Time windows and IP ranges ride along as <strong>contextual tuples</strong> supplied at check-time (docs pseudocode: <code>ip-address-range:10.0.0.0/16</code>, <code>timeslot:18_19</code>). Precision note: gating on them requires <strong>conditions with request context</strong> in the model — contextual tuples alone are just facts. Shape-illustrative condition (confirm <code>condition</code> syntax against your server version):</p>
+                ${createCodeBlock(`type document
+  relations
+    define viewer: [user with office_hours] or editor
+
+condition office_hours(ip: string, now: string) {
+  ip.startsWith("10.0.") and now >= "09:00" and now <= "17:00"
+}
+// check(user:anne, viewer, document:Q3,
+//   context: { ip: "10.0.4.12", now: "10:15" },
+//   contextual_tuples: [])  -> condition gates the direct grant`, 'openfga', 'Condition + context: time/IP gating needs model conditions, not just tuples')}
+                <p>And do not rely on the playground for this path: integration-test time/IP-gated checks against a real server.</p>
             </div>
 
             <div class="lesson-section">
@@ -1597,7 +1636,7 @@ fga check --store-id $STORE --model-id $MODEL_ID user:anne viewer document:Q3
                 <ul>
                     <li><strong>Revocation is tuple deletion</strong> — plus cache invalidation. A deleted tuple with a 60s check-cache is a 60s lingering grant. Size caches accordingly.</li>
                     <li><strong>Write tuples transactionally with your domain writes:</strong> sharing-without-tuple (user sees nothing) and tuple-without-share (dangling grant) are both bugs — same transaction or outbox.</li>
-                    <li><strong>List-objects before check-storms:</strong> rendering <em>all docs anne can view</em> via per-doc checks is N+1 authorization; list-objects is the designed path.</li>
+                    <li><strong>List-objects before check-storms:</strong> rendering <em>all docs anne can view</em> via per-doc checks is N+1 authorization; list-objects is the designed path. Bound it like any listing: type + relation filters, pagination, and product limits (see quiz q7 — unbounded reverse queries are a DoS vector).</li>
                 </ul>
             </div>
             ${renderPolicyLab('Trace how team-transitive paths resolve through two hops.')}
@@ -1729,7 +1768,7 @@ fga check --store-id $STORE --model-id $MODEL_ID user:anne viewer document:Q3
         number: 15,
         estimatedTime: 70,
         difficulty: 4,
-        prerequisites: ["conftest_ci"],
+        prerequisites: ["opa_production"],
 
         content: `
             <div class="lesson-section">
@@ -1782,6 +1821,9 @@ spec:
                     <li><strong>Start with <code>dryrun</code>:</strong> new constraints audit first (violations logged, nothing blocked), then flip to <code>deny</code>. Big-bang deny on a brownfield cluster is a self-inflicted outage.</li>
                     <li><strong>exemptImages has no per-namespace scoping:</strong> docs-verified — different namespaces needing different exemptions require separate constraints, not one clever parameter.</li>
                     <li><strong>Mutation exists (Assign/AssignImage):</strong> defaulting digests and labels is powerful — and a second write path to review with the same rigor as deny rules.</li>
+                    <li><strong>Audit vs enforce:</strong> <code>enforcementAction</code> is per-Constraint (deny/dryrun/warn) AND the <code>audit</code> loop re-checks existing objects on a schedule — admission gates new writes, audit catches what predates the policy. Run both; neither alone covers the estate.</li>
+                    <li><strong>Data replication for cross-object rules:</strong> admission review sees one object — rules joining against other resources (e.g. allowed registries ConfigMap) need <code>config.spec.sync</code> replication configured, or the rule evaluates against an empty cache and misfires.</li>
+                    <li><strong>Scope with namespaceSelector, plan webhook failure:</strong> prefer <code>namespaceSelector</code>/label scoping over name lists; and decide the webhook failure policy up front (fail-closed blocks deploys during Gatekeeper outages — rehearse it, or the first outage decides for you).</li>
                 </ul>
             </div>
             ${renderPolicyLab('Compare sidecar vs gateway vs admission: who decides, when, with what blast radius.')}
@@ -1913,7 +1955,7 @@ spec:
         number: 16,
         estimatedTime: 60,
         difficulty: 2,
-        prerequisites: ["openfga_production"],
+        prerequisites: ["rego_foundations"],
 
         content: `
             <div class="lesson-section">
@@ -1939,7 +1981,11 @@ deny contains msg if {
 # $ conftest test deployment.yaml
 # FAIL - deployment.yaml - Containers must not run as root
 # FAIL - deployment.yaml - Containers must provide app label for pod selectors
-# 2 tests, 0 passed, 0 warnings, 2 failures, 0 exceptions`, 'rego', 'Conftest: deny regroup over manifests, CLI-verbatim output')}
+# 2 tests, 0 passed, 0 warnings, 2 failures, 0 exceptions
+#
+# Runnable layout: policy/deny.rego + policy/exceptions.rego, then
+# $ conftest test -p policy deployment.yaml
+# $ conftest test -p policy --all-namespaces manifests/   # multi-doc sweep`, 'rego', 'Conftest: deny regroup over manifests, CLI-verbatim output')}
             </div>
 
             <div class="lesson-section">
@@ -1971,7 +2017,7 @@ no_violations if { count(deny_run_as_root) == 0 }
                 <h3>🔍 Critical Review Notes</h3>
                 <ul>
                     <li><strong>CI complements admission, never replaces it:</strong> repo-time checks pass on what is committed; admission checks what is actually applied (kubectl --validate=false, GitOps drift, emergency edits all bypass CI).</li>
-                    <li><strong>Exceptions expire or they accumulate:</strong> every exception rule gets an owner and an expiry; review the exception list with the same cadence as the deny list.</li>
+                    <li><strong>Exceptions expire or they accumulate:</strong> every exception rule gets an owner and an expiry; review the exception list with the same cadence as the deny list. Scope exceptions by namespace + labels, not bare workload name — a name-only exception follows the name anywhere it is reused.</li>
                     <li><strong>Test the tests:</strong> <code>deny_</code> prefixes plus per-rule unit tests keep suites readable past a dozen rules — message-matching monoliths rot.</li>
                 </ul>
             </div>
@@ -2307,7 +2353,7 @@ actions:
         number: 18,
         estimatedTime: 75,
         difficulty: 4,
-        prerequisites: ["immuta_policies"],
+        prerequisites: ["conftest_ci"],
 
         content: `
             <div class="lesson-section">
@@ -2512,10 +2558,11 @@ condition_request(requestParams, identity) if {
         content: `
             <div class="lesson-section">
                 <h3>🔌 Three Patterns (All Reviewed, All Fail-Closed)</h3>
+                <p>Setup detail lives in Lesson 11 (bundles, decision API, hot reload) — this lesson compares the patterns. Read the per-pattern setup there first if you have not run it.</p>
                 <ul>
-                    <li><strong>Sidecar (rest-rego):</strong> reverse-proxy beside each service; JWT/OIDC or Azure Graph; <code>&lt;5ms</code> overhead, 5000+ req/s; hot reload &lt;1s; Prometheus + structured logs. Zero app code changes.</li>
-                    <li><strong>Gateway (Envoy + OPA):</strong> jwt_authn validates → x-jwt-payload to OPA via ext_authz gRPC → router forwards only on allow. <code>failure_mode_allow: false</code>, 200ms timeout.</li>
-                    <li><strong>Middleware (Keycloak + OPA):</strong> route table maps paths to <code>resource:action</code>; single Starlette/FastAPI middleware resolves user, checks OPA (local or sidecar), caches 5s, denies closed on <code>OPA_FAIL_OPEN=false</code>.</li>
+                    <li><strong>Sidecar (rest-rego):</strong> reverse-proxy beside each service; JWT/OIDC or Azure Graph; <code>&lt;5ms</code> overhead, 5000+ req/s on the reviewed hardware/policy (rest-rego's measurement, not a universal constant — re-measure with your policy and load); hot reload &lt;1s; Prometheus + structured logs. Zero app code changes.</li>
+                    <li><strong>Gateway (Envoy + OPA):</strong> jwt_authn validates → x-jwt-payload to OPA via ext_authz gRPC → router forwards only on allow. <code>failure_mode_allow: false</code>, 200ms timeout. Minimal filter shape (confirm against your Envoy version): <code>http_filters: [{name: envoy.filters.http.ext_authz, typed_config: {failure_mode_allow: false, timeout: 200ms, grpc_service: {opa_cluster}}}]</code>.</li>
+                    <li><strong>Middleware (Keycloak + OPA):</strong> route table maps paths to <code>resource:action</code> (first-match-wins, empty permission = public skip); single Starlette/FastAPI middleware resolves user, checks OPA (local or sidecar), caches 5s, denies closed on <code>OPA_FAIL_OPEN=false</code>. Minimal RULES shape: <code>[{path: "/teams/:id", action: "teams:write"}, {path: "/public/health", action: ""}]</code>.</li>
                 </ul>
             </div>
 
@@ -2682,6 +2729,21 @@ cedar validate --schema schema.cedar --policies policies.cedar
 
 # OpenFGA: replay check fixtures against staging (never only playground)
 fga check --store-id $STAGE user:eve viewer document:Q3  # expect false`, 'bash', 'Verification commands per engine (CI-gated)')}
+                ${createCodeBlock(`# policies/request_test.rego — table-style Rego tests (opa test picks up *_test.rego)
+package policies
+
+test_analyst_denied_other_tenant if {
+  not allow with input as {"jwt": {"roles": ["analyst"], "tenant": "t1"},
+                            "request": {"method": "GET", "path": ["payments", "9"]},
+                            "tenant_header": "t2"}
+}
+
+test_admin_full_access if {
+  allow with input as {"jwt": {"roles": ["admin"], "tenant": "t1"},
+                       "request": {"method": "DELETE", "path": ["payments", "9"]},
+                       "tenant_header": "t1"}
+}
+# $ opa test ./policies/ -v  -> PASS: 2/2 (names above appear per-test)`, 'rego', 'Rego test file: named allow + deny twins')}
             </div>
 
             <div class="lesson-section">
@@ -2696,7 +2758,8 @@ fga check --store-id $STAGE user:eve viewer document:Q3  # expect false`, 'bash'
 
             <div class="lesson-section">
                 <h3>📊 Coverage Lies to Watch</h3>
-                <p>100% rule coverage with only allow-tests is a green lie. Require <strong>deny-coverage</strong> (each rule has a failing-twin test) and <strong>default-coverage</strong> (empty/garbage inputs deny). Pin engine versions in CI — Rego 1.x <code>if/in</code> vs legacy syntax must not drift between laptop and pipeline.</p>
+                <p>100% rule coverage with only allow-tests is a green lie. Require <strong>deny-coverage</strong> (each rule has a failing-twin test) and <strong>default-coverage</strong> (empty/garbage inputs deny). Measurable gate: <code>opa test --coverage --format=json</code> must report every rule hit AND every rule hit by at least one failing input — encode both counts as CI thresholds (e.g. <code>jq '.coverage >= 100 and .deny_twins == .rules'</code>), not vibes. Pin engine versions in CI — Rego 1.x <code>if/in</code> vs legacy syntax must not drift between laptop and pipeline.</p>
+                <p><strong>Decision-diff command (one way):</strong> <code>for f in inputs/*.json; do echo -n "$f old/new: "; opa eval -b old-bundle.tar.gz -i $f 'data.authz.allow' | jq .result[0].expressions[0].value; opa eval -b new-bundle.tar.gz -i $f 'data.authz.allow' | jq .result[0].expressions[0].value; done | diff against the approved flip list</code> — every flipped verdict needs a one-line justification in the PR.</p>
             </div>
             ${renderPolicyLab('Toggle default-deny off and watch the property tests go red.')}
         `,
@@ -2833,7 +2896,7 @@ fga check --store-id $STAGE user:eve viewer document:Q3  # expect false`, 'bash'
             <div class="lesson-section">
                 <h3>🌿 The Strangler Sequence</h3>
                 <ol>
-                    <li><strong>Inventory:</strong> extract every inline check into a catalog (route → current rule). You cannot migrate what you cannot list.</li>
+                    <li><strong>Inventory:</strong> extract every inline check into a catalog (route → current rule). You cannot migrate what you cannot list. Start mechanical: <code>rg -n "role|permit|allow|isAdmin|can[A-Z]" --type py --type js services/ | sort &gt; authz-inventory.txt</code>, then hand-triage into route → rule rows — the grep finds candidates, humans write the catalog.</li>
                     <li><strong>Shadow mode:</strong> deploy PDP beside the old checks; log agreements/disagreements without enforcing. Disagreements are your spec.</li>
                     <li><strong>Role-import:</strong> encode existing roles as policy first (RBAC-in-PBAC) — zero behavior change, full test harness.</li>
                     <li><strong>Attribute enrichment:</strong> add tenant/owner/MFA rules one invariant at a time, each with deny-tests.</li>
@@ -2849,14 +2912,14 @@ fga check --store-id $STAGE user:eve viewer document:Q3  # expect false`, 'bash'
                     <li><strong>Role explosion becomes policy debt</strong> if you transliterate 400 roles 1:1 — collapse dimensions into attributes during import.</li>
                     <li><strong>Dual-write tuples need an outbox, not a distributed transaction:</strong> share-actions write old ACL rows AND emit tuple-writes via transactional outbox; there is no XA across your DB and OpenFGA — design for at-least-once + reconciliation.</li>
                     <li><strong>Enforcement outside services:</strong> stored procedures, BI semantic layers, and warehouse grants are not lintable service code — inventory them as out-of-scope enforcement with owners, or the strangler strangles nothing.</li>
-                    <li><strong>PII in shadow logs:</strong> shadow mode records real requests; redact payloads/attributes in the diff pipeline or the migration creates its own breach.</li>
+                    <li><strong>PII in shadow logs:</strong> shadow mode records real requests; allowlist what the diff pipeline keeps (subject id, action, resource id, verdict, policy id) and redact everything else (payloads, emails, tokens, free-text attributes) — or the migration creates its own breach.</li>
                     <li><strong>Attribute-source cleanup:</strong> HR/IdP feeds, stale groups, and dead roles migrate too — or the new PDP faithfully enforces garbage.</li>
                 </ul>
             </div>
 
             <div class="lesson-section">
                 <h3>📏 Done Criteria (Tolerance-Based, Not Zero-Based)</h3>
-                <p>A long-tail estate will never show a literal zero diff. Exit instead on: inline authZ conditionals at zero in services (linted) with a risk-accepted inventory of out-of-scope enforcement; shadow diff <strong>below an agreed threshold on sampled production inputs</strong> with every residual exception named, owned, and expiry-dated; per-route rollback rehearsed; freeze windows and audit sign-off completed; old code deleted route-by-route. Migration without deletion is just two systems to breach.</p>
+                <p>A long-tail estate will never show a literal zero diff. Exit instead on: inline authZ conditionals at zero in services (linted) with a risk-accepted inventory of out-of-scope enforcement; shadow diff <strong>below an agreed threshold on sampled production inputs</strong> with every residual exception named, owned, and expiry-dated; per-route rollback rehearsed; freeze windows and audit sign-off completed; old code deleted route-by-route. Numeric example: <code>&lt;0.1% disagree on 100k sampled prod requests over 7 days, zero disagree on deny→allow flips, ≤5 named exceptions each with owner + expiry</code> — calibrate the numbers to your estate, then freeze them in the migration charter. Migration without deletion is just two systems to breach.</p>
             </div>
             ${renderPolicyLab('Compare RBAC transliteration vs attribute-collapsed policy on role count.')}
         `,
@@ -3015,14 +3078,14 @@ result = plainid_anonymizer.invoke(user_query)`, 'python', 'Three gates: categor
                     <li><strong>Gate order is load-bearing:</strong> categorizing after retrieval leaks unauthorized content into context (and logs). Deny early.</li>
                     <li><strong>Retrieval filtering ≠ output filtering:</strong> region-gating decides <em>which docs</em>; anonymization decides <em>which fields</em>. Both gates stay; neither subsumes the other.</li>
                     <li><strong>Agent identity is a first-class subject:</strong> multi-identity evaluation (human + agent + app, AND semantics) means the <em>agent's</em> clearance gates too — a cleared human driving an uncleared agent still denies.</li>
-                    <li><strong>MCP/tool calls are actions:</strong> every tool invocation is an (agent, action, resource) triple through the PDP — tools are the new API endpoints.</li>
+                    <li><strong>MCP/tool calls are actions:</strong> every tool invocation is an (agent, action, resource) triple through the PDP — tools are the new API endpoints. No PlainID tenant? The same triple gates through OPA (<code>allow if input.agent.clearance >= input.tool.sensitivity</code> over a tool-allowlist) or Cedar (permit per tool action + forbid on exfil compositions) — the gates are architecture, not vendor.</li>
                 </ul>
             </div>
 
             <div class="lesson-section">
                 <h3>⛔ Enforcement Limits (Read Before Trusting the Gates)</h3>
                 <ul>
-                    <li><strong>Gate 1 is probabilistic:</strong> the categorizer is an LLM classifier — paraphrase and prompt injection bypass it. Require allowlist categories, an adversarial test set, and human approval for high-risk tools. (Per docs, the categorizer also supports a single identity per request — do not assume multi-identity framing everywhere.)</li>
+                    <li><strong>Gate 1 is probabilistic:</strong> the categorizer is an LLM classifier — paraphrase and prompt injection bypass it. Require allowlist categories, an adversarial test set, and human approval for high-risk tools. Adversarial set, minimum (run on every categorizer change): 5 paraphrases of each blocked topic, 3 injection probes (<code>ignore previous instructions…</code>, role-play, encoding tricks), 3 mixed allowed+blocked queries — all must deny. (Per docs, the categorizer also supports a single identity per request — do not assume multi-identity framing everywhere.)</li>
                     <li><strong>Blocked answers still leak:</strong> retrieved-then-blocked content touches context, logs, caches, and embeddings. Gate order reduces but does not eliminate retention — scope sessions and audit tool I/O.</li>
                     <li><strong>Anonymization ≠ de-identification:</strong> masked names re-identify via joins and aggregates. Treat anonymizer output as pseudonymized, not anonymous.</li>
                     <li><strong>Composed allowed actions leak:</strong> allowed search + allowed email = exfiltration. AND-semantics across identities does not stop two individually-permitted steps from composing into one violation — model dangerous compositions explicitly.</li>
@@ -3165,7 +3228,7 @@ result = plainid_anonymizer.invoke(user_query)`, 'python', 'Three gates: categor
             <div class="lesson-section">
                 <h3>🎯 Mission</h3>
                 <p>Secure a three-service payments API (public health, tenant-scoped reads, admin writes, per-document sharing) using <strong>at least two engines</strong> from this course: OPA/Rego for the API layer, Cedar for app rules, OpenFGA for document sharing. Ship policy + tests + measurements.</p>
-                <p><strong>Time model (honest):</strong> 480 min across sessions — <strong>M1 policy (120)</strong> → <strong>M2 tests (120)</strong> → <strong>M3 enforcement + evidence (240)</strong>. Do not attempt in one sitting.</p>
+                <p><strong>Time model (honest):</strong> 480 min across sessions — <strong>M1 policy (120)</strong> → <strong>M2 tests (120)</strong> → <strong>M3 enforcement (exactly one pattern) + evidence (240)</strong>. Do not attempt in one sitting.</p>
             </div>
 
             <div class="lesson-section">
@@ -3182,7 +3245,7 @@ result = plainid_anonymizer.invoke(user_query)`, 'python', 'Three gates: categor
 
             <div class="lesson-section">
                 <h3>📊 Rubric (14/20 to pass) — one artifact per row</h3>
-                <p><strong>Submit:</strong> repo layout (<code>policies/</code>, <code>tests/</code>, <code>evidence/</code>), <code>opa test -v</code> log, p50/p99 table, decision-diff file, rollback log. Score each row 0 (absent), partial (present but unchecked), or full (present and evidenced per the check).</p>
+                <p><strong>Submit:</strong> repo layout (<code>policies/</code>, <code>tests/</code>, <code>evidence/</code>), <code>opa test -v</code> log, p50/p99 table, decision-diff file, rollback log. Score each row 0 (absent), partial (present but unchecked), or full (present and evidenced per the check). <strong>Points:</strong> partial = 1 pt on every row (including 2-pt row 7); full = listed pts. Max 20, pass at 14.</p>
                 <table>
                     <thead><tr><th>#</th><th>Artifact (pts)</th><th>Partial</th><th>Full (3, or 2 for row 7)</th></tr></thead>
                     <tbody>
@@ -3190,7 +3253,7 @@ result = plainid_anonymizer.invoke(user_query)`, 'python', 'Three gates: categor
                         <tr><td>2</td><td>Deny/regression/property suite log (3)</td><td>Allow-tests only</td><td><code>opa test -v</code> green with named cross-tenant, stranger, and garbage-input denies</td></tr>
                         <tr><td>3</td><td>Two-engine seam tests (3)</td><td>Two engines present, seams untested</td><td>Rego tenant test AND FGA sharing test both green</td></tr>
                         <tr><td>4</td><td>Share/revoke lifecycle transcript (3)</td><td>Scripted but revoke untested</td><td>Share + revoke transcript AND cache-invalidation measurement shown</td></tr>
-                        <tr><td>5</td><td>p50/p99 latency table (3)</td><td>Numbers without method</td><td>Table states n, method, and setup for both percentiles</td></tr>
+                        <tr><td>5</td><td>p50/p99 latency table (3)</td><td>Numbers without method</td><td>Table states n≥100, warm+cold split, tool named (e.g. hey/k6/opa bench), and fail-closed timeout for both percentiles</td></tr>
                         <tr><td>6</td><td>Rollback log (3)</td><td>Steps listed, never run</td><td>Log with staging timestamps from a rehearsed rollback</td></tr>
                         <tr><td>7</td><td>Decision-diff file (2)</td><td>Diff shown, flips unjustified</td><td>Diff file with every flipped verdict justified in one line each</td></tr>
                     </tbody>
@@ -3330,7 +3393,7 @@ result = plainid_anonymizer.invoke(user_query)`, 'python', 'Three gates: categor
         content: `
             <div class="lesson-section">
                 <h3>🎯 Mission</h3>
-                <p>Govern a finance analytics warehouse: tag PII columns, write one <strong>global masking policy</strong> with an auditor exception, one <strong>row-filter policy</strong> (analysts see only their department), and a <strong>guardrail</strong> (training-complete required). Prove fail-closed behavior on a mis-scoped table.</p>
+                <p>Govern a finance analytics warehouse: tag PII columns, write one <strong>global masking policy</strong> with an auditor exception, one <strong>row-filter policy</strong> (analysts see only their department), and a <strong>guardrail</strong> (training-complete required). Prove fail-closed behavior on a mis-scoped table. <strong>No Immuta tenant? Alternate track:</strong> OPA data-filtering compile-to-SQL (Lesson 12) + Postgres RLS/masking views — same artifacts (taxonomy, transcripts, parity diff against native SQL), no console required.</p>
                 <p><strong>Time model (honest):</strong> 480 min across sessions — <strong>M1 taxonomy + masking (150)</strong> → <strong>M2 row filters + guardrail (150)</strong> → <strong>M3 lockout + evidence (180)</strong>.</p>
             </div>
 
@@ -3348,7 +3411,7 @@ result = plainid_anonymizer.invoke(user_query)`, 'python', 'Three gates: categor
 
             <div class="lesson-section">
                 <h3>📊 Rubric (14/20 to pass) — one artifact per row</h3>
-                <p><strong>Submit:</strong> <code>taxonomy.md</code>, policy exports, <code>transcripts/*.md</code> (markdown: command + output per demo step), <code>remediation.log</code>, <code>native-parity.diff</code>. Score each row 0 (absent), partial (present but unchecked), or full per the check.</p>
+                <p><strong>Submit:</strong> <code>taxonomy.md</code>, policy exports, <code>transcripts/*.md</code> (markdown: command + output per demo step), <code>remediation.log</code>, <code>native-parity.diff</code>. Score each row 0 (absent), partial (present but unchecked), or full per the check. <strong>Points:</strong> partial = 1 pt on every row (including 2-pt row 3); full = listed pts. Max 20, pass at 14.</p>
                 <table>
                     <thead><tr><th>#</th><th>Artifact (pts)</th><th>Partial</th><th>Full</th></tr></thead>
                     <tbody>
