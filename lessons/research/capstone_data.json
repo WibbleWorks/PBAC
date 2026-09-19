@@ -116,11 +116,11 @@
             "isCorrect": false
           },
           {
-            "text": "Allowed on weekends",
+            "text": "Allowed — guardrails apply only to contractors",
             "isCorrect": false
           },
           {
-            "text": "The system crashes",
+            "text": "Error — conflicting policies halt evaluation",
             "isCorrect": false
           }
         ],
@@ -146,7 +146,7 @@
             "isCorrect": false
           },
           {
-            "text": "Blame the database",
+            "text": "Present it as a warehouse bug, re-scope silently",
             "isCorrect": false
           }
         ],

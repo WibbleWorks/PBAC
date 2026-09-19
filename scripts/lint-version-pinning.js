@@ -17,13 +17,17 @@ const ROOT = path.resolve(__dirname, '..');
 const FILES = [
     'practical-examples.js',
     'course-data.js',
+    'index.html',
+    'main.js',
 ];
 
 // A pip install line is "pinned" if every token after `pip install`
 // (ignoring flags like -U / --force-reinstall) ends with a version specifier,
 // an SDK plugin marker (qiskit-aer, langchain-openai), or is a local project
 // path (./, .). We keep this conservative and noisy.
-const PIP_LINE = /pip\s+install\s+(.+?)[<"`'\n]/g;
+// Trailing class includes end-of-line ($ handled per-line) plus quote/backtick
+// delimiters so `pip install foo` at EOL is still scanned.
+const PIP_LINE = /pip\s+install\s+(.+?)(?:[<"`'\n]|$)/g;
 // Recognize version markers, including HTML-escaped forms (&gt; / &lt;) which
 // appear when the install line is rendered inside <pre><code> blocks.
 const VERSION_MARKER = /(?:&gt;|&lt;|[><=!~])/;             // >= == ~= > < !=
@@ -35,6 +39,16 @@ function checkFile(file) {
     const src = fs.readFileSync(full, 'utf8');
     const findings = [];
     src.split(/\r?\n/).forEach((line, i) => {
+        // Docker / OPA / Cedar pins: flag :latest or unversioned downloads
+        if (/docker\s+run[^`"'<\n]*openfga\/openfga:(latest)?(\s|$|`|"|')/.test(line) && !/openfga\/openfga:v[0-9]+\.[0-9]+\.[0-9]+/.test(line)) {
+            findings.push({ file, line: i + 1, text: line.trim(), unpinned: ['openfga docker tag (pin vX.Y.Z)'] });
+        }
+        if (/openpolicyagent\.org\/downloads\//.test(line) && !/openpolicyagent\.org\/downloads\/v[0-9]+\.[0-9]+\.[0-9]+/.test(line)) {
+            findings.push({ file, line: i + 1, text: line.trim(), unpinned: ['OPA download (pin vX.Y.Z)'] });
+        }
+        if (/cargo\s+install\s+cedar-policy/.test(line) && !/--version|@.*[0-9]/.test(line)) {
+            findings.push({ file, line: i + 1, text: line.trim(), unpinned: ['cedar-policy-cli (add --version X.Y.Z)'] });
+        }
         let m;
         // Reset regex state per line (it's a sticky global regex)
         const re = new RegExp(PIP_LINE.source, 'g');

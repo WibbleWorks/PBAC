@@ -76,8 +76,8 @@ await page.evaluate(() => {
 await page.waitForTimeout(200);
 await audit('initial load (all lessons unlocked)');
 
-// 2. Navigate through 3 representative lessons (one per tier)
-const sampleIds = ['access_control_intro', 'rego_foundations', 'architecture_patterns'];
+// 2. Navigate through 8 representative lessons (one per animation type)
+const sampleIds = ['access_control_intro', 'rbac_abac_rebac', 'default_deny', 'rego_foundations', 'cedar_foundations', 'openfga_foundations', 'immuta_policies', 'architecture_patterns'];
 for (const id of sampleIds) {
     await page.evaluate((id) => {
         document.getElementById('placementOverlay')?.remove();
@@ -95,6 +95,31 @@ await page.evaluate(() => {
 });
 await page.waitForTimeout(200);
 await audit('quiz in progress');
+
+// 3b. Review mode + results screen (quiz-system showReview/endQuiz states)
+await page.evaluate(() => {
+    try {
+        if (window.quiz && window.quiz.currentQuiz) {
+            for (let i = 0; i < window.quiz.currentQuiz.questions.length; i++) {
+                window.quiz.userAnswers[i] = 0;
+            }
+            if (typeof window.quiz.showReview === 'function') window.quiz.showReview();
+        }
+    } catch (e) { /* audit the state as-is */ }
+});
+await page.waitForTimeout(200);
+await audit('quiz review mode');
+
+// 3c. Results screen (endQuiz state) + capstone table surface
+await page.evaluate(() => {
+    try {
+        if (window.quiz && typeof window.quiz.endQuiz === 'function') window.quiz.endQuiz();
+        document.getElementById('placementOverlay')?.remove();
+        window.course.showLesson('capstone_api');
+    } catch (e) { /* audit the state as-is */ }
+});
+await page.waitForTimeout(200);
+await audit('quiz results + capstone table');
 
 // 4. Mobile viewport (<=900px triggers the drawer nav)
 await page.setViewportSize({ width: 375, height: 700 });

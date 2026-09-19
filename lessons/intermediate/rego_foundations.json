@@ -146,7 +146,7 @@
             "isCorrect": false
           },
           {
-            "text": "By emailing it to the OPA team",
+            "text": "By POSTing {\"input\": {...}} wrapped to opa eval -i",
             "isCorrect": false
           }
         ],
@@ -172,7 +172,7 @@
             "isCorrect": false
           },
           {
-            "text": "The Policy Lab canvas breaks",
+            "text": "Nothing — OPA merges same-named packages safely",
             "isCorrect": false
           }
         ],
@@ -198,7 +198,7 @@
             "isCorrect": false
           },
           {
-            "text": "In the quiz file",
+            "text": "In input alongside per-request JWT claims",
             "isCorrect": false
           }
         ],

@@ -59,7 +59,7 @@
             "isCorrect": true
           },
           {
-            "text": "A screenshot of the login page",
+            "text": "The OIDC configuration showing MFA is enabled",
             "isCorrect": false
           },
           {

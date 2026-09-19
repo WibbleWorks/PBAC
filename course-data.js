@@ -745,7 +745,7 @@ const COURSE_DATA = {
                                 question: "An auditor asks for evidence of least-privilege enforcement. What do you show in a PBAC estate?",
                                 options: [
                                     { text: "Versioned policy + decision logs + periodic access reviews", isCorrect: true },
-                                    { text: "A screenshot of the login page", isCorrect: false },
+                                    { text: "The OIDC configuration showing MFA is enabled", isCorrect: false },
                                     { text: "The password complexity setting", isCorrect: false },
                                     { text: "A verbal assurance from engineering", isCorrect: false }
                                 ],

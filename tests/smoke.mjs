@@ -4,7 +4,7 @@
 // Verified things (without a browser):
 //   - all 5 JS files pass `node --check`
 //   - the merged COURSE_DATA has the expected number of lessons across all 5 levels
-//   - every lesson has a quiz with >= 5 questions and a 60% pass threshold
+//   - every lesson has a quiz with 8 questions (5 sampled per attempt) and a 60% pass threshold
 //   - every lesson uses an animation type the PBACAnimations class implements
 //
 // If Playwright is installed (`npx playwright install chromium`), the test
@@ -72,8 +72,8 @@ console.log('\n[3/4] Lesson quizzes (course-data.js + practical-examples.js)');
 for (const [id, lesson] of Object.entries(COURSE_DATA.levels.beginner.lessons)) {
     if (!lesson.quiz) { fail(`${id}: no quiz`); continue; }
     const q = lesson.quiz.questions.length;
-    if (q >= 5) ok(`${id}: ${q} quiz questions (>=5)`);
-    else fail(`${id}: only ${q} quiz questions (<5)`);
+    if (q >= 8) ok(`${id}: ${q} quiz questions (>=8)`);
+    else fail(`${id}: only ${q} quiz questions (<8)`);
     if (lesson.animation && lesson.animation.type) ok(`${id}: has animation type '${lesson.animation.type}'`);
     else fail(`${id}: missing animation`);
 }
@@ -92,7 +92,7 @@ for (const [id, lesson] of Object.entries(COURSE_DATA.levels.beginner.lessons)) 
     while ((am = peAnimRe.exec(pe)) !== null) animTypes.add(am[1]);
     const KNOWN_ANIMS = new Set(['policy-flow', 'rbac-abac-compare', 'default-deny-sim', 'rego-playground', 'cedar-sim', 'openfga-graph', 'data-masking-sim', 'auth-patterns']);
     for (const { level, id } of extraLessons) {
-        if (peQuizIds.has(id)) ok(`${id}: has quiz block (>=5 enforced by validate-lessons.mjs)`);
+        if (peQuizIds.has(id)) ok(`${id}: has quiz block (>=8 enforced by validate-lessons.mjs)`);
         else fail(`${id}: no quiz block found in practical-examples.js`);
     }
     for (const t of animTypes) {
