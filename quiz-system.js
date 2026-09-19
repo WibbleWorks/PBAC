@@ -24,11 +24,38 @@ class QuizSystem {
         this.questionOrder = [];
         this.optionOrder = []; // array of maps, indexed by display position
 
+        // Learning analytics (aggregate only, no PII): capped history of quiz
+        // attempts with per-question outcomes, for difficulty calibration.
+        // Persisted to localStorage; exported/imported via course progress.
+        this.attempts = [];
+        this._attemptsKey = 'pbacQuizAttempts';
+        this._maxAttempts = 200;
+
         this.init();
     }
 
     init() {
         this.quizContainer = document.getElementById('quizContainer');
+        try {
+            const raw = localStorage.getItem(this._attemptsKey);
+            if (raw) {
+                const arr = JSON.parse(raw);
+                if (Array.isArray(arr)) this.attempts = arr.slice(-this._maxAttempts);
+            }
+        } catch (e) { /* private mode etc — analytics degrade silently */ }
+    }
+
+    _saveAttempts() {
+        try {
+            localStorage.setItem(this._attemptsKey, JSON.stringify(this.attempts.slice(-this._maxAttempts)));
+        } catch (e) { /* quota — analytics degrade silently */ }
+    }
+
+    // Replace local attempt history (used by progress import).
+    importAttempts(arr) {
+        if (!Array.isArray(arr)) return;
+        this.attempts = arr.filter(a => a && typeof a === 'object').slice(-this._maxAttempts);
+        this._saveAttempts();
     }
 
     // Fisher-Yates shuffle. Returns a new array.
@@ -364,6 +391,28 @@ class QuizSystem {
         };
 
         const quizSnapshot = this._lastQuiz;
+
+        // Learning analytics: one compact record per attempt. Per-question
+        // outcomes use ORIGINAL bank indices so results aggregate across
+        // shuffles; unanswered (timeout) counts as a miss.
+        try {
+            const lessonId = (window.course && window.course.currentLessonId) || null;
+            this.attempts.push({
+                lesson: lessonId,
+                quiz: quizSnapshot && quizSnapshot.id ? quizSnapshot.id : null,
+                ts: new Date().toISOString(),
+                score: finalScore,
+                dur: this.startTime ? Math.max(0, Math.round((Date.now() - this.startTime) / 1000)) : null,
+                n: totalQuestions,
+                q: userOriginalAnswers.map((a, i) => a
+                    ? { q: a.origQuestionIdx, c: a.correct ? 1 : 0 }
+                    : { q: this.questionOrder[i], c: 0 })
+            });
+            if (this.attempts.length > this._maxAttempts) {
+                this.attempts = this.attempts.slice(-this._maxAttempts);
+            }
+            this._saveAttempts();
+        } catch (e) { /* analytics must never break the quiz */ }
 
         // Show results
         if (this.quizContainer) {
